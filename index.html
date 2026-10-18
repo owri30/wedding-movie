@@ -1,0 +1,1205 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wedding Movie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Fredoka:wght@600&family=Great+Vibes&family=Shippori+Mincho:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fbf7f4; --panel:#ffffff; --line:#eadfd8; --text:#3a2f33; --muted:#8c7c82;
+  --accent:#c8798f; --accent2:#e7b16a; --soft:#f6ece8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif}
+header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;background:linear-gradient(90deg,#fff6f3,#fdf3fa 50%,#f3f8ff)}
+header h1{margin:0;font:400 34px/1 "Great Vibes",cursive;color:var(--accent)}
+header p{margin:0;color:var(--muted);font-size:13px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;padding:20px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){.layout{grid-template-columns:1fr;padding:16px}}
+.stage{min-width:0}
+.screen{background:#1b1416;border-radius:12px;display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;max-height:72vh;margin:0 auto;overflow:hidden;position:relative;box-shadow:0 6px 24px #6b3d4a22}
+.screen canvas{width:100%;height:100%;display:block}
+.screen .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#d9c3ca;font-size:14px;text-align:center;padding:20px;pointer-events:none;line-height:1.7}
+.transport{display:flex;align-items:center;gap:10px;margin-top:12px}
+.transport input[type=range]{flex:1}
+.time{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--muted);min-width:96px;text-align:right}
+.panel{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{margin:0 0 10px;font-size:13px;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.card h2 b{color:var(--accent);margin-right:6px;font-family:"Cormorant Garamond",serif;font-size:16px}
+button,.btn{background:var(--soft);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;cursor:pointer;font-family:inherit}
+button:hover{border-color:#d8c4bc}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+button.play{width:44px;height:40px;padding:0;font-size:16px}
+.drop{border:1.5px dashed #dccbc4;border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;transition:.15s}
+.drop.over{border-color:var(--accent);color:var(--text);background:#fdf0f3}
+.drop strong{display:block;color:var(--text);font-size:14px;margin-bottom:4px}
+.thumbs{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px}
+.thumbs li{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;background:#000;border:1px solid var(--line);cursor:grab}
+.thumbs li.dragging{opacity:.4}
+.thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.thumbs .no{position:absolute;left:3px;top:3px;font:600 11px ui-monospace,Consolas,monospace;background:#fffc;padding:1px 5px;border-radius:4px}
+.thumbs .x{position:absolute;right:3px;top:3px;width:20px;height:20px;padding:0;border-radius:50%;font-size:12px;line-height:18px;background:#fffd}
+.thumbs .mv{position:absolute;bottom:3px;width:22px;height:20px;padding:0;font-size:11px;background:#fffd}
+.thumbs .mv.l{left:3px}.thumbs .mv.r{right:3px}
+.thumbs .vid{position:absolute;left:50%;transform:translateX(-50%);bottom:3px;font:600 10px ui-monospace,Consolas,monospace;background:#fffd;padding:2px 5px;border-radius:4px;white-space:nowrap}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap}
+.row label{font-size:13px;color:var(--muted);min-width:92px}
+.row select,.row input[type=number],.row input[type=text]{background:#fff;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:16px;font-family:inherit}
+.row input[type=text]{flex:1;min-width:140px}
+.row input[type=number]{width:80px}
+.row input[type=range]{flex:1;min-width:100px}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.6}
+.small{font-size:12px;color:var(--muted)}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.themes button{padding:8px 4px;font-size:12px;line-height:1.3}
+.themes button.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+.progress{height:6px;background:var(--soft);border-radius:3px;overflow:hidden;margin-top:10px}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.dl{display:none;margin-top:10px}
+.dl a{color:var(--accent);font-weight:700}
+.dl video{width:100%;margin-top:8px;border-radius:6px;background:#000}
+input[type=range]{accent-color:var(--accent)}
+.check{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text)}
+[hidden]{display:none!important}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom, 0px));max-width:min(560px,calc(100% - 32px));background:var(--panel);color:var(--text);border:1px solid var(--accent);border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.5;z-index:50;box-shadow:0 4px 16px #0002}
+</style>
+</head>
+<body>
+<header>
+  <h1>Wedding Movie</h1>
+  <p>写真と動画を選ぶだけで、音楽に合わせた結婚式の思い出ムービーに</p>
+</header>
+
+<div class="layout">
+  <section class="stage">
+    <div class="screen" id="screen">
+      <canvas id="out" width="1920" height="1080"></canvas>
+      <div class="empty" id="empty">右のパネル（スマホは下）から<br>写真・動画を追加してください</div>
+    </div>
+    <div class="transport">
+      <button class="play" id="playBtn" title="再生 / 停止" disabled>▶</button>
+      <input type="range" id="seek" min="0" max="1000" value="0" step="1" disabled>
+      <span class="time" id="time">0.00 / 0.00</span>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="card">
+      <h2><b>01</b>写真・動画</h2>
+      <div class="drop" id="drop">
+        <strong>タップ or ドラッグ&ドロップ</strong>
+        写真（JPG / PNG / WebP）・動画（MP4 / MOV など）　複数選択OK
+      </div>
+      <input type="file" id="fileIn" accept="image/*,video/*" multiple hidden>
+      <ol class="thumbs" id="thumbs"></ol>
+      <p class="hint">ドラッグか ◀ ▶ で並べ替え。最初の1枚がオープニングとエンディングに使われます。動画の音は使いません。人物の検出（人物だけ色を残す・POPのフチ取りなど）は写真だけです。</p>
+      <p class="hint" id="segStatus"></p>
+    </div>
+
+    <div class="card">
+      <h2><b>02</b>タイトル文字</h2>
+      <div class="row"><label for="names">二人の名前</label><input type="text" id="names" placeholder="例：Kenta &amp; Yui"></div>
+      <div class="row"><label for="date">日付</label><input type="text" id="date"></div>
+      <div class="row"><label for="message">最後の言葉</label><input type="text" id="message" value="Thank you"></div>
+      <div class="row"><label class="check"><input type="checkbox" id="titles" checked> オープニング／エンディングに文字を出す</label></div>
+    </div>
+
+    <div class="card">
+      <h2><b>03</b>音楽（任意）</h2>
+      <div class="row">
+        <button id="musicBtn">曲を選ぶ</button>
+        <span class="small" id="musicName">未選択（無音で書き出し）</span>
+        <input type="file" id="musicIn" accept="audio/*,video/*" hidden>
+      </div>
+      <div class="row">
+        <label for="bpm">BPM</label>
+        <input type="number" id="bpm" min="60" max="200" step="0.1" value="100">
+        <button id="detectBtn" disabled>自動検出</button>
+      </div>
+      <div class="row">
+        <label for="audioStart">曲の開始位置</label>
+        <input type="range" id="audioStart" min="0" max="0" step="0.01" value="0" disabled>
+        <span class="small" id="audioStartVal">0.0s</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><b>04</b>雰囲気</h2>
+      <div class="themes" id="themes">
+        <button data-v="mix" class="on">おまかせ<br>ミックス</button>
+        <button data-v="musical">ミュージカル<br>カラフル</button>
+        <button data-v="pop">POP</button>
+        <button data-v="dreamy">ふんわり光</button>
+        <button data-v="film">フィルム</button>
+        <button data-v="colorkeep">人物だけ<br>カラー</button>
+      </div>
+      <p class="hint" id="themeHint"></p>
+      <div class="row">
+        <label for="aspect">画面比率</label>
+        <select id="aspect">
+          <option value="1920x1080">16:9（横・テレビ／YouTube）</option>
+          <option value="1080x1920">9:16（縦・リール／ストーリー）</option>
+          <option value="1080x1080">1:1（正方形）</option>
+          <option value="1440x1080">4:3</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="tempo">テンポ</label>
+        <select id="tempo">
+          <option value="slow">ゆったり</option>
+          <option value="normal" selected>ふつう（ときどき速い連続カット）</option>
+          <option value="lively">軽快</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="fit">写真の収め方</label>
+        <select id="fit">
+          <option value="cover">画面いっぱい（人物を中心に切り抜き）</option>
+          <option value="contain">全体を表示（余白は色の世界）</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="colorful">色の世界</label>
+        <input type="range" id="colorful" min="0" max="1" step="0.05" value="0.8">
+        <span class="small val" data-for="colorful"></span>
+      </div>
+      <div class="row">
+        <label for="glow">光のにじみ</label>
+        <input type="range" id="glow" min="0" max="1" step="0.05" value="0.5">
+        <span class="small val" data-for="glow"></span>
+      </div>
+      <div class="row">
+        <label for="film">フィルム感</label>
+        <input type="range" id="film" min="0" max="1" step="0.05" value="0.5">
+        <span class="small val" data-for="film"></span>
+      </div>
+      <div class="row">
+        <label for="sparkle">キラキラ・花びら</label>
+        <input type="range" id="sparkle" min="0" max="1" step="0.05" value="0.6">
+        <span class="small val" data-for="sparkle"></span>
+      </div>
+      <div class="row">
+        <button id="shuffleBtn">🎲 組み合わせを変える</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><b>05</b>書き出し</h2>
+      <button class="primary" id="exportBtn" disabled>動画を書き出す</button>
+      <p class="hint">再生しながらリアルタイムで録画します。書き出し中はこの画面を開いたままにしてください（スマホは画面を消さないでください）。</p>
+      <div class="progress"><i id="prog"></i></div>
+      <div class="dl" id="dl"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+'use strict';
+/* ============================================================
+   State
+   ============================================================ */
+const S = {
+  images: [],          // {kind, bmp, tex, w, h, url, id, mask, personArea, personBox, edge}
+  bpm: 100, seed: 7, theme: 'mix', tempo: 'normal', fit: 'cover',
+  colorful: .8, glow: .5, film: .5, sparkle: .6,
+  names: '', date: '', message: 'Thank you', titles: true,
+  W: 1920, H: 1080,
+  audio: null, audioBuf: null, audioStart: 0,
+};
+let timeline = { segs: [], duration: 0 };
+let playing = false, exporting = false, curT = 0, clockBase = 0;
+
+const $ = id => document.getElementById(id);
+const out = $('out');                                  // WebGL output (what you see / what gets recorded)
+const comp = document.createElement('canvas');         // transparent 2D canvas for petals, sparkles and titles
+const ctx = comp.getContext('2d');
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hi(...n){let h=2166136261;for(const v of n){h^=(v|0);h=Math.imul(h,16777619);h^=h>>>13}return h>>>0}
+const rnd = (...n) => mulberry32(hi(...n))();
+const clamp01 = x => Math.min(1,Math.max(0,x));
+const smooth = (a,b,x) => { const k=clamp01((x-a)/(b-a)); return k*k*(3-2*k); };
+
+/* ============================================================
+   WebGL: scene pass (one picture + look) -> mix pass (transition) -> bloom -> post (light / film)
+   ============================================================ */
+const gl = out.getContext('webgl', {preserveDrawingBuffer:true, antialias:false, premultipliedAlpha:false});
+
+const VS = `attribute vec2 p;varying vec2 vUv;void main(){vUv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}`;
+
+const COMMON = `
+precision highp float;
+varying vec2 vUv;
+float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p*=2.03;a*=.5;}return v;}
+float luma(vec3 c){return dot(c,vec3(.299,.587,.114));}
+vec3 sat(vec3 c,float k){return clamp(mix(vec3(luma(c)),c,k),0.,1.);}
+/* bright rainbow palette for the colourful "musical" world */
+vec3 pal(float t){return clamp(vec3(.55)+vec3(.5)*cos(6.2831853*(vec3(t)+vec3(0.,.33,.67))),0.,1.);}
+`;
+
+/* looks: 0 film (natural, the post pass does the work) · 1 musical (person stays natural in a colourful painted world)
+   2 pop (flat bright colours + halftone dots, white sticker outline on the person) · 3 dreamy (high-key pastel)
+   4 colour keep (background mono, person in colour) */
+const FS = COMMON + `
+uniform sampler2D uTex, uMask;
+uniform vec2 uRes, uImg, uPan;
+uniform float uFit, uTime, uLook, uPar, uAmt, uHasMask;
+
+vec2 toImg(vec2 s){
+  float sa=uRes.x/uRes.y, ia=uImg.x/uImg.y;
+  vec2 p=s-.5+uPan;
+  vec2 sc = ((ia>sa)==(uFit<.5)) ? vec2(1.,sa/ia) : vec2(ia/sa,1.);
+  return p/sc+.5;
+}
+bool inside(vec2 u){ return u.x>=0.&&u.x<=1.&&u.y>=0.&&u.y<=1.; }
+vec3 world(vec2 s){
+  vec2 q=s*vec2(uRes.x/uRes.y,1.);
+  vec2 w=vec2(fbm(q*1.2+uTime*.06+uPar*7.),fbm(q*1.2+3.1-uTime*.05))-.5;
+  float h=fbm(q*1.6+w*2.2+uTime*.04);
+  vec3 c=pal(h*1.6+uPar+uTime*.02);
+  return mix(c,vec3(1.),smoothstep(.02,0.,abs(fract(h*6.+uTime*.05)-.5)-.47)*.35);   // soft marbled veins
+}
+float maskAt(vec2 s){
+  vec2 u=toImg(s);
+  if(uHasMask<.5||!inside(u)) return 0.;
+  return texture2D(uMask,u).r;
+}
+void main(){
+  vec2 s=vUv; vec2 iu=toImg(s);
+  int look=int(uLook+.5);
+  bool inI=inside(iu);
+  vec3 col;
+  if(inI) col=texture2D(uTex,iu).rgb;
+  else { vec3 wc=world(s); col = (look==1||look==2) ? wc : mix(vec3(.97,.94,.92),wc,.22); }
+  float m=inI ? smoothstep(.3,.7,maskAt(s)) : 0.;
+  float A=uAmt, L=luma(col), hm=uHasMask;
+  vec3 bg=col, pc=col;
+  if(look==1){
+    vec3 w=world(s);
+    vec3 paint=sat(w,1.25)*(.2+1.*L);                   // the colourful world, shaded by the picture
+    paint=mix(paint,col*w*1.6,.3);
+    bg=mix(col,paint,A*(hm>.5?1.:.4));
+    pc=sat(col,1.08);
+  } else if(look==2){
+    int pp=int(floor(fract(uPar*3.7)*4.));
+    vec3 c1=vec3(1.,.25,.6), c2=vec3(1.,.86,.2);
+    if(pp==1){ c1=vec3(.15,.75,1.); c2=vec3(1.,.5,.75); }
+    if(pp==2){ c1=vec3(.3,.35,1.); c2=vec3(1.,.9,.25); }
+    if(pp==3){ c1=vec3(1.,.45,.2); c2=vec3(.45,1.,.8); }
+    float cs=uRes.y/64.;
+    vec2 g=gl_FragCoord.xy/cs; g=vec2(g.x+g.y,g.x-g.y)*.7071;
+    float dd=length(fract(g)-.5);
+    float hi=smoothstep(.42,.58,L);
+    float tone=mix(L/.5,(L-.5)/.5,hi);
+    float rad=sqrt(clamp(1.-tone,0.,1.))*.5;
+    float dt=1.-smoothstep(rad-.06,rad+.06,dd);
+    vec3 base=mix(c1,c2,hi);
+    vec3 ink=mix(vec3(1.),c1*.75,hi);
+    vec3 popbg=mix(base,ink,dt*.9);
+    bg=mix(col,popbg,A*(hm>.5?1.:.35));
+    pc=sat((col-.5)*1.12+.5,1.3);
+  } else if(look==3){
+    vec3 airy=sat(mix(col,vec3(1.,.97,.98),.3),.82)+.03;
+    bg=mix(col,airy,A);
+    pc=mix(col,airy,A*.6);                             // the person gets lighter too, a bit less
+  } else if(look==4){
+    vec3 mono=vec3((L-.5)*1.1+.5)*vec3(1.03,1.,.96);
+    bg=mix(col,mono,hm>.5?.6+.4*A:1.);
+    pc=sat(col,1.06);
+  }
+  col=mix(bg,pc,m);
+  if(look==2 && hm>.5 && inI){
+    // sticker-like white outline around the person
+    float d=0.; float r=uRes.y*.009;
+    for(int j=0;j<12;j++){ float a=float(j)*.5236; d=max(d,maskAt(s+vec2(cos(a),sin(a))*r/uRes)); }
+    float ol=clamp(smoothstep(.3,.6,d)-m,0.,1.);
+    col=mix(col,vec3(1.),ol*smoothstep(.2,.6,A));
+  }
+  gl_FragColor=vec4(clamp(col,0.,1.),m);
+}`;
+
+/* mix pass: A = outgoing picture (its alpha = person), B = incoming
+   0 A only · 1 marbled ink dissolve · 2 surroundings melt into flowing colour while the person stays, then goes too
+   3 a warm wash of light, the next picture shows through · 4 pop dots that grow into the next picture */
+const MFS = COMMON + `
+uniform sampler2D uA,uB; uniform vec2 uRes; uniform float uTime,uMode,uK,uSeedM;
+vec4 TA4(vec2 u){ u=clamp(u,0.,1.); return texture2D(uA,vec2(u.x,1.-u.y)); }
+vec3 TA(vec2 u){ return TA4(u).rgb; }
+vec3 TB(vec2 u){ u=clamp(u,0.,1.); return texture2D(uB,vec2(u.x,1.-u.y)).rgb; }
+void main(){
+  vec2 u=vUv; int m=int(uMode+.5); float asp=uRes.x/uRes.y; float K=uK;
+  vec2 q=u*vec2(asp,1.);
+  if(m==0){ gl_FragColor=vec4(TA(u),1.); return; }
+  if(m==1){
+    vec2 w=vec2(fbm(q*1.5+uTime*.12+uSeedM),fbm(q*1.5+4.7-uTime*.1+uSeedM))-.5;
+    float n=fbm(q*1.3+w*2.2+uSeedM*1.3);
+    float th=mix(-.12,1.12,K);
+    float d=th-n;                                         // > 0: already the new picture
+    float gone=smoothstep(-.03,.03,d);
+    float front=smoothstep(.16,0.,abs(d));
+    vec3 a=TA(u+w*.035*front);
+    vec3 b=TB(u-w*.02*front);
+    vec3 col=mix(a,b,gone);
+    vec3 rim=pal(n*2.+uTime*.05+uSeedM);
+    col=mix(col,1.-(1.-col)*(1.-rim*.6),front*.55);      // pastel colour bleeding along the edge
+    gl_FragColor=vec4(col,1.); return;
+  }
+  if(m==2){
+    vec4 a0=TA4(u);
+    float keep=a0.a*(1.-smoothstep(.55,.95,K+(fbm(q*3.+uSeedM)-.5)*.3));
+    vec2 w=vec2(fbm(q*1.6+uTime*.12+uSeedM),fbm(q*1.6+5.3-uTime*.1+uSeedM))-.5;
+    vec2 w2=vec2(fbm(q*3.5+w*3.+uTime*.08),fbm(q*3.5+w*3.+2.7-uTime*.07))-.5;
+    vec2 flow=(w*.24+w2*.12)*K;
+    vec4 aw=TA4(u+flow);
+    vec3 b=TB(u+flow*.3*(1.-K));
+    vec3 bgA=mix(aw.rgb,b,aw.a);                          // don't smear the person into the flow
+    float mh=fbm(q*2.+w*3.+uTime*.06+uSeedM);
+    vec3 g=mix(bgA,pal(mh*1.5+uTime*.03)*(.45+.75*luma(bgA)),.5);
+    bgA=mix(bgA,g,smoothstep(0.,.35,K));
+    float n=fbm(q*1.3+w*2.4+uSeedM*1.7);
+    float gone=smoothstep(n-.07,n+.07,mix(-.1,1.1,K));
+    vec3 col=mix(bgA,b,gone);
+    col=mix(col*(1.-.2*smoothstep(0.,.9,keep)*(1.-keep)),a0.rgb,keep);
+    gl_FragColor=vec4(col,1.); return;
+  }
+  if(m==3){
+    float L=sin(3.14159*K);
+    float n=fbm(q*1.1+uSeedM+vec2(uTime*.05,0.));
+    float rev=smoothstep(n-.18,n+.18,mix(-.25,1.25,K));
+    vec3 col=mix(TA(u),TB(u),rev);
+    vec2 lc=vec2(mix(-.3,1.3,K),.35+.25*sin(uSeedM*3.));
+    float lk=exp(-dot((u-lc)*vec2(asp*.55,1.),(u-lc)*vec2(asp*.55,1.))*2.2)*(.6+.7*fbm(q*2.+uTime*.2));
+    vec3 lcol=mix(vec3(1.,.74,.46),vec3(1.,.6,.74),fract(uSeedM*.37));
+    col=1.-(1.-col)*(1.-lcol*clamp(lk*L*1.2+L*.22,0.,1.));
+    gl_FragColor=vec4(col,1.); return;
+  }
+  // m==4: pop dots
+  float cs=uRes.y/11.;
+  vec2 fc=u*uRes; vec2 cell=floor(fc/cs); vec2 cc=(cell+.5)*cs;
+  vec2 nc=uRes/cs;
+  float delay=(cell.x/nc.x*.6+cell.y/nc.y*.4)*.6+hash(cell+uSeedM)*.2;
+  float r=clamp((K*1.5-delay)/.6,0.,1.);
+  float rad=r*r*(3.-2.*r)*cs*.75;
+  float d=length(fc-cc);
+  vec3 col=d<rad?TB(u):TA(u);
+  col=mix(col,vec3(1.),smoothstep(3.,0.,abs(d-rad))*step(.001,r)*(1.-step(.999,r)));
+  gl_FragColor=vec4(col,1.);
+}`;
+
+/* bloom: bright parts of the mixed frame, blurred at quarter size */
+const BFS = COMMON + `
+uniform sampler2D uTex; uniform vec2 uStep;
+vec3 br(vec2 c){ vec3 x=texture2D(uTex,c).rgb; return x*smoothstep(.55,.98,luma(x)); }
+void main(){
+  vec2 c=vec2(vUv.x,1.-vUv.y);
+  vec3 acc=br(c)*2.; float tw=2.;
+  for(int i=1;i<=2;i++) for(int j=0;j<8;j++){
+    float a=float(j)*.7854+float(i)*.39;
+    acc+=br(c+vec2(cos(a),sin(a))*float(i)*1.8*uStep); tw+=1.;
+  }
+  gl_FragColor=vec4(acc/tw,1.);
+}`;
+
+/* post: bloom + overlays (petals, titles) + film treatment */
+const PFS = COMMON + `
+uniform sampler2D uTex,uBl,uOv; uniform vec2 uRes,uBRes;
+uniform float uTime,uBloom,uGrain,uFade,uWarm,uLeak,uVig,uSat,uHigh,uFlash,uFadeOut,uSeedP;
+void main(){
+  vec2 u=vUv; vec2 fu=vec2(u.x,1.-u.y);
+  vec3 col=texture2D(uTex,fu).rgb;
+  vec3 bl=vec3(0.);
+  for(int i=-1;i<=1;i++) for(int j=-1;j<=1;j++) bl+=texture2D(uBl,fu+vec2(float(i),float(j))*2.5/uBRes).rgb;
+  bl/=9.;
+  col=1.-(1.-col)*(1.-clamp(bl*uBloom,0.,1.));                     // soft glow (screen)
+  col=mix(col,vec3(1.),uHigh*smoothstep(.35,1.,luma(col))*.45);       // airy highlights
+  vec4 o=texture2D(uOv,u);
+  col=mix(col,o.rgb,o.a);
+  col=mix(vec3(luma(col)),col,uSat);
+  col*=mix(vec3(1.),vec3(1.06,1.,.87),uWarm);
+  col=mix(vec3(uFade*.55,uFade*.48,uFade*.5),vec3(1.-uFade*.12),col); // lifted blacks, softened whites
+  float lk=fbm(vec2(u.x*1.4+uTime*.06,u.y*.7-uTime*.03)+uSeedP);
+  float e=max(smoothstep(.4,0.,u.x),smoothstep(.6,1.,u.x)*.7);
+  vec3 lcol=mix(vec3(1.,.45,.2),vec3(1.,.4,.55),fbm(u*2.+uTime*.05));
+  col=1.-(1.-col)*(1.-clamp(lcol*lk*lk*e*uLeak*1.6,0.,1.));           // light leaks from the edges
+  col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*uGrain*.28;   // grain
+  vec2 v=u-.5; col*=1.-dot(v,v)*uVig*1.3;
+  col=mix(col,vec3(1.),uFlash);
+  col*=1.-uFadeOut;
+  gl_FragColor=vec4(clamp(col,0.,1.),1.);
+}`;
+
+function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));return s;}
+function program(fs,names){
+  const p=gl.createProgram();
+  gl.attachShader(p,compile(gl.VERTEX_SHADER,VS)); gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fs));
+  gl.bindAttribLocation(p,0,'p'); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u={}; names.forEach(n=>u[n]=gl.getUniformLocation(p,n));
+  return {p,u};
+}
+const scene = program(FS,['uTex','uMask','uRes','uImg','uPan','uFit','uTime','uLook','uPar','uAmt','uHasMask']);
+const mixer = program(MFS,['uA','uB','uRes','uTime','uMode','uK','uSeedM']);
+const bloom = program(BFS,['uTex','uStep']);
+const post = program(PFS,['uTex','uBl','uOv','uRes','uBRes','uTime','uBloom','uGrain','uFade','uWarm','uLeak','uVig','uSat','uHigh','uFlash','uFadeOut','uSeedP']);
+const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+
+function makeTex(bmp){
+  const t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  if(bmp) gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,bmp);
+  return t;
+}
+const ovTex = makeTex(null);
+const emptyMask = makeTex(null);
+gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(4));
+function makeFbo(){ return {tex:makeTex(null), fb:gl.createFramebuffer(), w:1, h:1}; }
+const layerFbo=[makeFbo(),makeFbo()], mixFbo=makeFbo(), bloomFbo=makeFbo();
+function sizeFbo(L,w,h){
+  L.w=w; L.h=h;
+  gl.bindTexture(gl.TEXTURE_2D,L.tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,L.tex,0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+
+/* ============================================================
+   Person segmentation (MediaPipe, runs in the browser; photos never leave the device)
+   ============================================================ */
+const MP_VER='0.10.14';
+let segmenterP=null;
+function getSegmenter(){
+  if(!segmenterP) segmenterP=(async()=>{
+    const v=await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/vision_bundle.mjs`);
+    const base=`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/wasm`;
+    const files={wasmLoaderPath:base+'/vision_wasm_internal.js', wasmBinaryPath:base+'/vision_wasm_internal.wasm'};
+    const mk=url=>v.ImageSegmenter.createFromOptions(files,{baseOptions:{modelAssetPath:url,delegate:'CPU'},
+      runningMode:'IMAGE', outputCategoryMask:true, outputConfidenceMasks:false});
+    // multiclass: hair / skin / clothes (good up close); deeplab: 'person' class (better for small, distant people)
+    const [multi,deeplab]=await Promise.all([
+      mk('https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite'),
+      mk('https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite')]);
+    return {multi,deeplab};
+  })();
+  return segmenterP;
+}
+async function segmentImage(im){
+  const seg=await getSegmenter();
+  const sc=Math.min(1,640/Math.max(im.w,im.h));
+  const c=document.createElement('canvas'); c.width=Math.round(im.w*sc); c.height=Math.round(im.h*sc);
+  c.getContext('2d').drawImage(im.bmp,0,0,c.width,c.height);
+  const res=seg.multi.segment(c);
+  const m=res.categoryMask, w=m.width, h=m.height, cat=m.getAsUint8Array().slice();
+  res.close&&res.close();
+  const res2=seg.deeplab.segment(c);
+  const m2=res2.categoryMask, dl=m2.getAsUint8Array().slice(), w2=m2.width, h2=m2.height;
+  res2.close&&res2.close();
+  const per=new Uint8Array(w*h);
+  for(let i=0;i<w*h;i++){
+    const x=Math.min(w2-1,Math.floor((i%w)/w*w2)), y=Math.min(h2-1,Math.floor(Math.floor(i/w)/h*h2));
+    per[i]=cat[i]>0||dl[y*w2+x]===15?1:0;
+  }
+  // soften the edge (deeplab's mask is coarse and comes out in steps): two box blurs ≈ a gaussian
+  let soft=Float32Array.from(per);
+  const rad=Math.max(2,Math.round(Math.max(w,h)/110)), tmp=new Float32Array(w*h);
+  const blur1=(src,dst,n,stride,off)=>{   // sliding-window mean along one row / column, edges clamped
+    const at=j=>src[off+Math.min(n-1,Math.max(0,j))*stride];
+    let acc=0; for(let j=-rad;j<=rad;j++) acc+=at(j);
+    for(let j=0;j<n;j++){ dst[off+j*stride]=acc/(2*rad+1); acc+=at(j+rad+1)-at(j-rad); }
+  };
+  for(let pass=0;pass<2;pass++){
+    for(let y=0;y<h;y++) blur1(soft,tmp,w,1,y*w);
+    for(let x=0;x<w;x++) blur1(tmp,soft,h,w,x);
+  }
+  const px=new Uint8Array(w*h*4), edge=[];
+  for(let i=0;i<w*h;i++){ px[i*4]=Math.round(Math.min(1,Math.max(0,soft[i]))*255); px[i*4+3]=255; }
+  let pa=0; const pb=[1,1,0,0];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const i=y*w+x; if(!per[i]) continue;
+    pa++;
+    pb[0]=Math.min(pb[0],x/w); pb[1]=Math.min(pb[1],y/h); pb[2]=Math.max(pb[2],x/w); pb[3]=Math.max(pb[3],y/h);
+    if(x>0&&x<w-1&&y>0&&y<h-1&&(!per[i-1]||!per[i+1]||!per[i-w]||!per[i+w])) edge.push([x/w,y/h]);   // silhouette, for sparkles
+  }
+  const t=makeTex(null);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,px);
+  im.mask=t; im.personArea=pa/(w*h); im.personBox=pb;
+  const step=Math.max(1,Math.floor(edge.length/400));
+  im.edge=edge.filter((_,j)=>j%step===0);
+}
+let segBusy=false, segAgain=false;
+async function segmentAll(){
+  if(segBusy){segAgain=true;return;}
+  const todo=S.images.filter(im=>!im.mask&&!im.segFailed&&im.kind!=='video');
+  if(!todo.length) return;
+  segBusy=true;
+  try{ await segmentRun(todo); } finally { segBusy=false; }
+  if(segAgain){segAgain=false;segmentAll();}
+}
+async function segmentRun(todo){
+  const st=$('segStatus');
+  try{
+    st.textContent='人物を検出中…（初回はモデルを読み込みます）';
+    await getSegmenter();
+    let k=0;
+    for(const im of todo){
+      st.textContent=`人物を検出中… ${++k} / ${todo.length}`;
+      await new Promise(r=>setTimeout(r,0));
+      if(S.images.includes(im)) await segmentImage(im);
+    }
+    const photos=S.images.filter(im=>im.kind!=='video');
+    st.textContent=`人物検出：写真 ${photos.length} 枚中 ${photos.filter(im=>im.personArea>.01).length} 枚で人物を検出`;
+  }catch(e){
+    console.warn('segmentation failed',e);
+    todo.forEach(im=>im.segFailed=true);
+    st.textContent='人物検出を使えませんでした（オフライン？）。人物以外の加工は使えます。';
+  }
+  if(!exporting) refresh();
+}
+
+/* ============================================================
+   Timeline (seeded, so preview and export match)
+   ============================================================ */
+const THEME_LOOK = {film:0, musical:1, pop:2, dreamy:3, colorkeep:4};
+const THEME_HINT = {
+  mix:'ミュージカル・POP・ふんわり光・フィルム・人物だけカラーを、似たものが続かないように1枚ずつ切り替えます。',
+  musical:'新郎新婦はそのままに、まわりの景色がゆっくり流れるカラフルな絵の具の世界に。',
+  pop:'ビビッドな2色と水玉のポップアート風。人物は色を濃くして白いフチ取り、紙吹雪が舞います。',
+  dreamy:'白とびぎみの明るいパステル。光がふんわりにじみます。',
+  film:'粒子・光漏れ・あたたかく褪せた色のフィルム風。',
+  colorkeep:'まわりはモノクロ、人物だけカラー。人物がいない写真・動画は全体がモノクロに。',
+};
+const TEMPO = {
+  slow:  {hold:[12,12,14,10], tr:3.0, burst:0},
+  normal:{hold:[8,8,10,8,6], tr:2.6, burst:.16},
+  lively:{hold:[6,6,8,4], tr:2.0, burst:.3},
+};
+// light / film settings per look (scaled by the sliders)
+const LOOKP = {
+  0:{bloom:.35,grain:.10,fade:.12,warm:.22,leak:.45,vig:.35,sat:.88,high:0},
+  1:{bloom:.32,grain:.03,fade:.02,warm:.06,leak:.1, vig:.15,sat:1.15,high:0},
+  2:{bloom:.25,grain:0,  fade:0,  warm:0,  leak:0,  vig:0,  sat:1.2, high:0},
+  3:{bloom:.95,grain:.02,fade:.07,warm:.05,leak:.12,vig:.04,sat:.92,high:.25},
+  4:{bloom:.4, grain:.05,fade:.05,warm:.04,leak:.05,vig:.25,sat:1,  high:.05},
+};
+
+function buildTimeline(){
+  const n=S.images.length, beat=60/S.bpm, T=TEMPO[S.tempo];
+  const r=mulberry32(hi(S.seed,n,Object.keys(TEMPO).indexOf(S.tempo),Object.keys(THEME_HINT).indexOf(S.theme),S.titles?1:0));
+  const segs=[];
+  if(!n){timeline={segs,duration:0};return;}
+  const trB=Math.max(2,Math.round(T.tr/beat));
+  const fixed=S.theme==='mix'?null:THEME_LOOK[S.theme];
+  const recent=[];
+  const pickLook=()=>{
+    if(fixed!=null) return fixed;
+    const pool=[1,3,2,4,0].filter(l=>!recent.includes(l));
+    const l=pool[Math.floor(r()*pool.length)];
+    recent.push(l); if(recent.length>2) recent.shift();
+    return l;
+  };
+  const add=(img,beats,o={})=>segs.push({img,beats,look:o.look??pickLook(),par:r(),seed:r()*100,title:o.title||null,cutIn:!!o.cutIn,
+    petal:o.title?1:(r()<.45?.5+.5*r():0), spark:o.title?1:(r()<.55?1:0)});
+  // opening: the first picture with the names
+  add(0, Math.max(trB+6, 2*Math.round(8/beat/2)), {title:S.titles?'open':null, look:fixed??3});
+  let sinceBurst=3, i=1;
+  while(i<n){
+    const left=n-i;
+    if(T.burst && left>=4 && sinceBurst>=3 && r()<T.burst){
+      // a quick run of cuts on the beat, then a long, calm hold
+      const k=Math.min(left-1,3);
+      for(let j=0;j<k;j++) add(i+j,1,{cutIn:true});
+      i+=k; sinceBurst=0;
+      add(i, Math.max(trB+6,12), {cutIn:true}); i++;
+      continue;
+    }
+    add(i, Math.max(T.hold[Math.floor(r()*T.hold.length)], trB+2)); i++; sinceBurst++;
+  }
+  // ending: the first picture again with the closing words
+  add(0, Math.max(trB+6, 2*Math.round(7/beat/2)), {title:S.titles?'end':null, look:fixed??1});
+
+  let lastMode=-1;
+  segs.forEach((s,j)=>{
+    const nx=segs[j+1];
+    if(!nx){ s.tr=null; return; }
+    if(nx.cutIn){ s.tr={mode:0,beats:0}; return; }
+    const im=S.images[s.img];
+    const pool=[1,1,3];
+    if(im.mask&&im.personArea>.03&&im.personArea<.6) pool.push(2,2);   // needs some surroundings to melt
+    if(s.look===2||nx.look===2) pool.push(4,4);
+    const cand=pool.filter(m=>m!==lastMode);
+    const mode=cand[Math.floor(r()*cand.length)];
+    lastMode=mode; s.tr={mode,beats:trB};
+  });
+  let t=0; const vpos={};
+  segs.forEach(s=>{
+    s.start=t; s.end=t+s.beats*beat; s.trStart=s.end-(s.tr?s.tr.beats:0)*beat; t=s.trStart;
+    const im=S.images[s.img];
+    if(im.kind==='video'){ s.v0=vpos[s.img]||0; vpos[s.img]=(s.v0+(s.end-s.start))%(im.dur||1); }
+  });
+  timeline={segs,duration:segs[segs.length-1].end};
+}
+function frameAt(t){
+  const segs=timeline.segs; let i=0;
+  while(i+1<segs.length && segs[i+1].start<=t) i++;
+  const B=segs[i], A=i>0&&segs[i-1].end>t?segs[i-1]:null;
+  if(A){
+    const k=clamp01((t-B.start)/(A.end-B.start));
+    return {A, B, k:k*k*(3-2*k), mode:A.tr.mode, list:[{s:A,w:1-k},{s:B,w:k}]};
+  }
+  return {A:B, B:null, k:0, mode:0, list:[{s:B,w:1}]};
+}
+// keep the person in frame and pan slowly across the part that is cropped off (no zooming)
+function fitScale(im){
+  const sa=S.W/S.H, ia=im.w/im.h, contain=S.fit==='contain';
+  return ((ia>sa)===contain) ? [1,sa/ia] : [ia/sa,1];
+}
+function segPan(seg,t){
+  const im=S.images[seg.img];
+  if(S.fit==='contain') return [0,0];
+  const sc=fitScale(im), sx=Math.max(0,(sc[0]-1)/2), sy=Math.max(0,(sc[1]-1)/2);
+  // faces sit near the top of the person box: put that a little above the middle of the screen
+  let cx=0, cy=0;
+  if(im.personBox&&im.personArea>.01){ const b=im.personBox; cx=((b[0]+b[2])/2-.5)*sc[0]; cy=(b[1]+(b[3]-b[1])*.22-.5)*sc[1]+.08; }
+  const d=Math.sin((t-seg.start)*.22+seg.seed);
+  return [Math.max(-sx,Math.min(sx,cx+d*Math.min(sx*.4,.05))), Math.max(-sy,Math.min(sy,cy+d*Math.min(sy*.4,.05)))];
+}
+function imgToScreen(im,pan,ux,uy){
+  const sc=fitScale(im);
+  return [((ux-.5)*sc[0]+.5-pan[0])*S.W, ((uy-.5)*sc[1]+.5-pan[1])*S.H];
+}
+
+/* ============================================================
+   Overlays: petals / confetti, sparkles along the couple, titles
+   ============================================================ */
+const PETAL_N=70, SPARK_N=36;
+const PETAL_COL=['#ffd1dc','#ffe4ec','#fff6f8','#ffc4d6','#ffe9d6'];
+const CONF_COL=['#ff4fa3','#ffd23f','#3ad0ff','#7cf06b','#ff7a3d','#a86bff'];
+function petalPath(s){ ctx.beginPath(); ctx.moveTo(0,-s); ctx.bezierCurveTo(s*.8,-s*.6,s*.6,s*.6,0,s); ctx.bezierCurveTo(-s*.6,s*.6,-s*.8,-s*.6,0,-s); }
+function heartPath(s){ ctx.beginPath(); ctx.moveTo(0,s*.45); ctx.bezierCurveTo(-s*1.2,-s*.3,-s*.5,-s*1.1,0,-s*.45); ctx.bezierCurveTo(s*.5,-s*1.1,s*1.2,-s*.3,0,s*.45); }
+function starPath(s,n,inner){ ctx.beginPath(); for(let j=0;j<n*2;j++){ const a=j*Math.PI/n-Math.PI/2, rr=j%2?s*inner:s; ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr); } ctx.closePath(); }
+const isJa = s => /[^\x00-\x7F]/.test(s);
+function drawOverlay(t,F){
+  const W=S.W,H=S.H,u=Math.min(W,H)/1080;
+  ctx.clearRect(0,0,W,H);
+  let pet=0, spk=0, pop=0;
+  F.list.forEach(({s,w})=>{ pet+=s.petal*w; spk+=s.spark*w; if(s.look===2) pop+=w; });
+  pet*=S.sparkle; spk*=S.sparkle;
+  // petals (or confetti in pop)
+  for(let i=0;i<PETAL_N;i++){
+    const th=rnd(i,11)*.999;
+    const a=clamp01((pet-th)*5); if(a<=0) continue;
+    const conf=rnd(i,12)<pop;
+    const sp=(conf?.07:.045)+.05*rnd(i,2);
+    const y=((rnd(i,3)+t*sp)%1.2-.1)*H;
+    const x=(((rnd(i,4)+Math.sin(t*(.35+.5*rnd(i,5))+i)*.05)%1+1)%1)*W;
+    const sz=(conf?10+12*rnd(i,6):12+16*rnd(i,6))*u;
+    const rot=t*(.5+rnd(i,7))*(rnd(i,8)<.5?-1:1)+i;
+    const flip=Math.cos(t*(1+rnd(i,9)*1.5)+i);
+    ctx.save(); ctx.translate(x,y); ctx.rotate(rot); ctx.scale(1,.25+.75*Math.abs(flip));
+    ctx.globalAlpha=a*(conf?.95:.85);
+    if(conf){
+      ctx.fillStyle=CONF_COL[Math.floor(rnd(i,13)*CONF_COL.length)];
+      const k=Math.floor(rnd(i,14)*4);
+      if(k===0) heartPath(sz); else if(k===1) starPath(sz,5,.45); else if(k===2){ ctx.beginPath(); ctx.arc(0,0,sz*.6,0,7); } else { ctx.beginPath(); ctx.rect(-sz*.9,-sz*.3,sz*1.8,sz*.6); }
+      ctx.fill();
+    } else {
+      ctx.fillStyle=PETAL_COL[Math.floor(rnd(i,13)*PETAL_COL.length)];
+      petalPath(sz); ctx.fill();
+      ctx.globalAlpha*=.35; ctx.fillStyle='#e98aa5'; petalPath(sz*.45); ctx.fill();
+    }
+    ctx.restore();
+  }
+  // sparkles: along the couple's silhouette when we know it, otherwise anywhere
+  const main=F.B&&F.k>.5?F.B:F.A, im=S.images[main.img], pan=segPan(main,t);
+  const onEdge=im.edge&&im.edge.length>20&&im.personArea>.02;
+  ctx.globalAlpha=1;
+  for(let k=0;k<SPARK_N;k++){
+    const th=rnd(k,21)*.999;
+    const a=clamp01((spk-th)*5); if(a<=0) continue;
+    const period=1.5+rnd(k,22), ph=t/period+rnd(k,23), cyc=Math.floor(ph), f=ph-cyc;
+    const b=Math.pow(Math.sin(Math.PI*f),3)*a; if(b<.02) continue;
+    let x,y;
+    if(onEdge){ const p=im.edge[Math.floor(rnd(k,cyc,24)*im.edge.length)]; [x,y]=imgToScreen(im,pan,p[0],p[1]); x+=(rnd(k,cyc,28)-.5)*30*u; y+=(rnd(k,cyc,29)-.5)*30*u; }
+    else { x=rnd(k,cyc,25)*W; y=rnd(k,cyc,26)*H*.85; }
+    const s=(9+20*rnd(k,27))*u*(.4+.6*b);
+    const g=ctx.createRadialGradient(x,y,0,x,y,s*1.8);
+    g.addColorStop(0,`rgba(255,250,235,${.6*b})`); g.addColorStop(1,'rgba(255,240,220,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,s*1.8,0,7); ctx.fill();
+    ctx.save(); ctx.translate(x,y); ctx.rotate(rnd(k,30)*.6-.3); ctx.globalAlpha=b;
+    ctx.fillStyle=pop>.5?CONF_COL[k%CONF_COL.length]:'#fffdf6';
+    starPath(s,4,.16); ctx.fill(); ctx.restore();
+  }
+  ctx.globalAlpha=1;
+  F.list.forEach(({s})=>{ if(s.title) drawTitle(s,t); });
+}
+function fitFont(text,font,size,maxW){
+  ctx.font=`${size}px ${font}`; const w=ctx.measureText(text).width;
+  if(w>maxW) size*=maxW/w; ctx.font=`${size}px ${font}`; return size;
+}
+function drawTitle(seg,t){
+  const W=S.W,H=S.H,u=Math.min(W,H);
+  const ts=t-seg.start;
+  let a=smooth(.5,1.8,ts);
+  if(seg.title==='open') a*=1-smooth(seg.trStart-.6,seg.trStart+.6,t);
+  if(a<=0) return;
+  const rise=(1-a)*u*.015;
+  const date=S.date.trim(), names=S.names.trim(), msg=S.message.trim();
+  const open=seg.title==='open';
+  const main = open ? (names||'Happy Wedding') : (msg||names||'Thank you');   // big script line
+  const sub = open && names ? 'WEDDING' : '';                                 // small caps above it
+  const small = open ? date : (msg&&names ? names : date);                    // small line below it
+  ctx.save(); ctx.globalAlpha=a; ctx.textAlign='center'; ctx.textBaseline='middle';
+  const pop=seg.look===2;
+  const y0=H*(H>W?.70:.68)+rise;
+  if(pop){
+    const big=fitFont(main,'"Fredoka","Hiragino Maru Gothic ProN",sans-serif',u*.13,W*.86);
+    ctx.lineJoin='round';
+    ctx.fillStyle='#ffd23f'; ctx.fillText(main,W/2+u*.008,y0+u*.008);
+    ctx.lineWidth=big*.14; ctx.strokeStyle='#ff3f8e'; ctx.strokeText(main,W/2,y0);
+    ctx.fillStyle='#fff'; ctx.fillText(main,W/2,y0);
+    if(small){ fitFont(small,'"Fredoka",sans-serif',u*.045,W*.8); ctx.lineWidth=u*.012; ctx.strokeStyle='#3a6bff'; ctx.strokeText(small,W/2,y0+big*.85); ctx.fillStyle='#fff'; ctx.fillText(small,W/2,y0+big*.85); }
+  } else {
+    ctx.shadowColor='rgba(70,30,45,.5)'; ctx.shadowBlur=u*.025;
+    ctx.fillStyle='#fffaf5';
+    if(sub){
+      ctx.font=`600 ${u*.032}px "Cormorant Garamond",serif`;
+      if('letterSpacing' in ctx) ctx.letterSpacing=`${u*.012}px`;
+      ctx.fillText(sub,W/2,y0-u*.11);
+      if('letterSpacing' in ctx) ctx.letterSpacing='0px';
+    }
+    const ja=isJa(main);
+    fitFont(main, ja?'"Shippori Mincho",serif':'"Great Vibes",cursive', ja?u*.085:u*.15, W*.88);
+    ctx.fillText(main,W/2,y0);
+    if(small){
+      ctx.font=`500 ${u*.04}px "Cormorant Garamond","Shippori Mincho",serif`;
+      if('letterSpacing' in ctx) ctx.letterSpacing=`${u*.01}px`;
+      ctx.fillText(small,W/2,y0+u*.1);
+      if('letterSpacing' in ctx) ctx.letterSpacing='0px';
+    }
+  }
+  ctx.restore();
+}
+
+/* ============================================================
+   Render
+   ============================================================ */
+let frameNo=0, renderQueued=false;
+function requestRender(){ if(renderQueued||playing) return; renderQueued=true; setTimeout(()=>{renderQueued=false; render(curT);},16); }
+function syncVideo(im,want){
+  const v=im.el; im.used=frameNo;
+  if(playing){
+    if(v.paused){ try{v.currentTime=want;}catch(e){} v.play().catch(()=>{}); }
+    else if(Math.abs(v.currentTime-want)>.35 && !v.seeking) v.currentTime=want;
+  } else {
+    if(!v.paused) v.pause();
+    if(Math.abs(v.currentTime-want)>.04 && !v.seeking) v.currentTime=want;
+  }
+  if(v.readyState>=2) gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,v);
+}
+function drawLayer(seg,t,fb){
+  const W=S.W,H=S.H, im=S.images[seg.img], u=scene.u, pan=segPan(seg,t);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.viewport(0,0,W,H);
+  gl.useProgram(scene.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,im.tex); gl.uniform1i(u.uTex,0);
+  if(im.kind==='video') syncVideo(im,(seg.v0+(t-seg.start))%(im.dur||1));
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,im.mask||emptyMask); gl.uniform1i(u.uMask,1);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.uniform2f(u.uRes,W,H); gl.uniform2f(u.uImg,im.w,im.h); gl.uniform2f(u.uPan,pan[0],pan[1]);
+  gl.uniform1f(u.uFit,S.fit==='cover'?1:0); gl.uniform1f(u.uTime,t);
+  gl.uniform1f(u.uLook,seg.look); gl.uniform1f(u.uPar,seg.par); gl.uniform1f(u.uAmt,S.colorful);
+  gl.uniform1f(u.uHasMask,im.mask?1:0);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+function render(t){
+  const W=S.W,H=S.H; frameNo++;
+  let pp=LOOKP[3], flash=0, fadeOut=1, seedP=0;
+  if(!S.images.length){
+    ctx.clearRect(0,0,W,H);
+    [mixFbo,bloomFbo].forEach(L=>{ gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb); gl.viewport(0,0,L.w,L.h); gl.clearColor(.1,.08,.09,1); gl.clear(gl.COLOR_BUFFER_BIT); });
+    fadeOut=0;
+  } else {
+    const F=frameAt(t);
+    drawLayer(F.A,t,layerFbo[0].fb);
+    if(F.B) drawLayer(F.B,t,layerFbo[1].fb);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,mixFbo.fb); gl.viewport(0,0,W,H);
+    gl.useProgram(mixer.p);
+    const mu=mixer.u;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,layerFbo[0].tex); gl.uniform1i(mu.uA,0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,layerFbo[F.B?1:0].tex); gl.uniform1i(mu.uB,1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform2f(mu.uRes,W,H); gl.uniform1f(mu.uTime,t);
+    gl.uniform1f(mu.uMode,F.B?F.mode:0); gl.uniform1f(mu.uK,F.k); gl.uniform1f(mu.uSeedM,F.A.seed);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    // quarter-size glow
+    gl.bindFramebuffer(gl.FRAMEBUFFER,bloomFbo.fb); gl.viewport(0,0,bloomFbo.w,bloomFbo.h);
+    gl.useProgram(bloom.p);
+    gl.bindTexture(gl.TEXTURE_2D,mixFbo.tex); gl.uniform1i(bloom.u.uTex,0);
+    gl.uniform2f(bloom.u.uStep,1/bloomFbo.w,1/bloomFbo.h);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    drawOverlay(t,F);
+    const pa=LOOKP[F.A.look], pb=F.B?LOOKP[F.B.look]:pa;
+    pp={}; for(const k in pa) pp[k]=pa[k]+(pb[k]-pa[k])*F.k;
+    const cur=F.B||F.A;
+    if(cur.cutIn){ const x=t-cur.start; if(x<.25) flash=.3*(1-x/.25); }
+    const D=timeline.duration;
+    fadeOut=Math.max(1-smooth(0,.9,t), smooth(D-1.4,D,t));
+    seedP=F.A.seed;
+  }
+  S.images.forEach(im=>{ if(im.kind==='video' && im.used!==frameNo && !im.el.paused) im.el.pause(); });   // clips off screen rest
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,W,H);
+  gl.useProgram(post.p);
+  const pu=post.u, g=S.glow*2, fm=S.film*2;
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,ovTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,comp); gl.uniform1i(pu.uOv,2);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,bloomFbo.tex); gl.uniform1i(pu.uBl,1);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,mixFbo.tex); gl.uniform1i(pu.uTex,0);
+  gl.uniform2f(pu.uRes,W,H); gl.uniform2f(pu.uBRes,bloomFbo.w,bloomFbo.h); gl.uniform1f(pu.uTime,t);
+  gl.uniform1f(pu.uBloom,pp.bloom*g); gl.uniform1f(pu.uHigh,pp.high*Math.min(1.5,g));
+  gl.uniform1f(pu.uGrain,pp.grain*fm); gl.uniform1f(pu.uFade,Math.min(.3,pp.fade*fm)); gl.uniform1f(pu.uLeak,pp.leak*fm);
+  gl.uniform1f(pu.uVig,pp.vig*fm); gl.uniform1f(pu.uWarm,pp.warm*Math.min(1.5,fm)); gl.uniform1f(pu.uSat,pp.sat);
+  gl.uniform1f(pu.uFlash,flash); gl.uniform1f(pu.uFadeOut,fadeOut); gl.uniform1f(pu.uSeedP,seedP);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+
+/* ============================================================
+   Playback
+   ============================================================ */
+let audioCtx=null, mediaSrc=null, gainNode=null, recDest=null;
+function ensureAudioGraph(){
+  if(!S.audio) return;
+  if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(!mediaSrc){
+    mediaSrc=audioCtx.createMediaElementSource(S.audio);
+    gainNode=audioCtx.createGain();
+    recDest=audioCtx.createMediaStreamDestination();
+    mediaSrc.connect(gainNode); gainNode.connect(audioCtx.destination); gainNode.connect(recDest);
+  }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+}
+function now(){
+  // follow the music clock while it plays; keep the wall clock in sync in case the song ends first
+  if(S.audio && playing && !S.audio.ended && !S.audio.paused){
+    const t=S.audio.currentTime - S.audioStart;
+    clockBase=performance.now()-t*1000;
+    return t;
+  }
+  return (performance.now()-clockBase)/1000;
+}
+async function play(from){
+  if(!S.images.length) return;
+  curT = from ?? (curT>=timeline.duration-.05?0:curT);
+  playing=true; $('playBtn').textContent='❚❚';
+  if(S.audio){
+    ensureAudioGraph();
+    gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(1,audioCtx.currentTime);
+    S.audio.currentTime=S.audioStart+curT;
+    try{await S.audio.play();}catch(e){console.warn(e);}
+  }
+  clockBase=performance.now()-curT*1000;
+  const id=++loopId; nextFrame(id);
+}
+function stop(){
+  playing=false; $('playBtn').textContent='▶';
+  S.images.forEach(im=>{ if(im.el) im.el.pause(); });
+  if(S.audio) S.audio.pause();
+}
+// rAF stops in hidden tabs (and may never come in an unpainted embedded view); a timer keeps it going
+let loopId=0;
+function nextFrame(id){
+  let done=false; const f=()=>{ if(done) return; done=true; loop(id); };
+  if(!document.hidden) requestAnimationFrame(f);
+  setTimeout(f,34);
+}
+function loop(id){
+  if(!playing||id!==loopId) return;
+  let t=now();
+  if(S.audio && gainNode && timeline.duration-t<1.5) gainNode.gain.setTargetAtTime(0,audioCtx.currentTime,.4);   // music fades with the picture
+  if(t>=timeline.duration){t=timeline.duration;curT=t;render(t-.001);updateTime();stop();onPlaybackEnd();return;}
+  curT=Math.max(0,t); render(curT); updateTime();
+  if(exporting) $('prog').style.width=(curT/timeline.duration*100)+'%';
+  nextFrame(id);
+}
+function updateTime(){
+  $('time').textContent=`${curT.toFixed(2)} / ${timeline.duration.toFixed(2)}`;
+  $('seek').value=timeline.duration?Math.round(curT/timeline.duration*1000):0;
+}
+let onPlaybackEnd=()=>{};
+
+/* ============================================================
+   Export (MediaRecorder)
+   ============================================================ */
+function pickMime(){
+  const c=['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4',
+    'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  return c.find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
+}
+async function exportVideo(){
+  if(!S.images.length||exporting) return;
+  stop();
+  const mime=pickMime();
+  if(!window.MediaRecorder||!out.captureStream){notify('このブラウザは動画の録画に対応していません。Chrome / Edge / Safari の最新版をお使いください。');return;}
+  let wake=null;
+  if(navigator.wakeLock) navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});   // keep the phone screen on
+  ensureAudioGraph();
+  const stream=out.captureStream(30);
+  if(recDest) recDest.stream.getAudioTracks().forEach(tr=>stream.addTrack(tr));
+  const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:12_000_000}:{videoBitsPerSecond:12_000_000});
+  const chunks=[];
+  rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+  exporting=true; setBusy(true);
+  $('dl').style.display='none';
+  const done=new Promise(res=>rec.onstop=res);
+  render(0);
+  rec.start(500);
+  onPlaybackEnd=()=>{onPlaybackEnd=()=>{};setTimeout(()=>rec.stop(),250);};
+  await play(0);
+  await done;
+  exporting=false; setBusy(false); $('prog').style.width='100%';
+  if(wake) wake.release().catch(()=>{});
+  const type=(mime||'video/webm').split(';')[0];
+  const ext=type.includes('mp4')?'mp4':'webm';
+  const blob=new Blob(chunks,{type});
+  const url=URL.createObjectURL(blob);
+  const name=`wedding-movie-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'')}.${ext}`;
+  const size=(blob.size/1048576).toFixed(1);
+  const saver=await getDownloads();
+  if(saver){
+    // inside claude.ai the page can't start downloads itself; the host asks the viewer and saves it
+    $('dl').innerHTML=`<button class="primary" id="saveBtn">⬇ 動画を保存（${size} MB）</button><video src="${url}" controls playsinline></video>`;
+    $('saveBtn').onclick=()=>saver.save({filename:name,data:blob})
+      .then(r=>{if(r.status==='saved') notify('保存しました。');})
+      .catch(e=>{ if(e&&e.code!=='declined') notify(`保存できませんでした（${e&&e.code||'unknown'}）。`); });
+  } else {
+    // phones: the share sheet can put the video straight into Photos; a download link as well everywhere
+    const file=new File([blob],name,{type});
+    const canShare=navigator.canShare&&navigator.canShare({files:[file]});
+    $('dl').innerHTML=`${canShare?`<button class="primary" id="shareBtn">共有／写真に保存（${size} MB）</button><br>`:''}<a href="${url}" download="${name}">⬇ ${name}（${size} MB）をダウンロード</a><video src="${url}" controls playsinline></video>`;
+    if(canShare) $('shareBtn').onclick=()=>navigator.share({files:[file]}).catch(e=>{ if(e&&e.name!=='AbortError') notify('共有できませんでした。下のリンクから保存してください。'); });
+  }
+  $('dl').style.display='block';
+}
+async function getDownloads(){
+  try{ return window.claude&&window.claude.use ? await window.claude.use('downloads') : null; }catch(e){ return null; }
+}
+function notify(msg){
+  const n=$('toast'); n.textContent=msg; n.hidden=false;
+  clearTimeout(notify.t); notify.t=setTimeout(()=>{n.hidden=true;},7000);
+}
+function setBusy(b){
+  ['exportBtn','playBtn','seek','shuffleBtn','aspect','tempo','bpm','fit','fileIn','musicBtn','detectBtn','audioStart','titles','names','date','message']
+    .forEach(id=>{const el=$(id);if(el)el.disabled=b||(id==='detectBtn'&&!S.audioBuf)||(id==='audioStart'&&!S.audio)});
+  document.querySelectorAll('#themes button').forEach(x=>x.disabled=b);
+  $('exportBtn').textContent=b?'書き出し中…':'動画を書き出す';
+}
+
+/* ============================================================
+   Pictures
+   ============================================================ */
+let uid=0;
+const MAX_SIDE = navigator.maxTouchPoints>1 ? 1600 : 2048;   // phones and tablets have less GPU memory
+async function loadImage(f){
+  let src;
+  try{ src=await createImageBitmap(f,{imageOrientation:'from-image'}); }
+  catch(e){ const img=new Image(); img.src=URL.createObjectURL(f); await img.decode(); src=img; }
+  const w0=src.naturalWidth||src.width, h0=src.naturalHeight||src.height;
+  const sc=Math.min(1,MAX_SIDE/Math.max(w0,h0));
+  const c=document.createElement('canvas'); c.width=Math.round(w0*sc); c.height=Math.round(h0*sc);
+  const x=c.getContext('2d'); x.imageSmoothingQuality='high'; x.drawImage(src,0,0,c.width,c.height);
+  if(src.close) src.close();
+  return c;
+}
+const isVideo=f=>f.type.startsWith('video/')||/\.(mp4|mov|m4v|webm)$/i.test(f.name);
+// a muted, inline, looping <video> whose current frame is uploaded as a texture while it's on screen
+function loadVideo(f){
+  return new Promise((res,rej)=>{
+    const v=document.createElement('video');
+    v.muted=true; v.defaultMuted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.loop=true; v.preload='auto';
+    let done=false; const fail=()=>{if(!done){done=true;rej(new Error('video'));}};
+    v.onerror=fail; setTimeout(fail,20000);
+    v.onloadeddata=async()=>{
+      if(done) return;
+      if(!v.videoWidth){fail();return;}
+      v.pause();
+      try{ v.currentTime=Math.min(.5,(v.duration||1)/2); await new Promise(r=>{v.onseeked=r;setTimeout(r,1500);}); }catch(e){}
+      const sc=Math.min(1,320/Math.max(v.videoWidth,v.videoHeight)), c=document.createElement('canvas');
+      c.width=Math.round(v.videoWidth*sc); c.height=Math.round(v.videoHeight*sc);
+      c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+      v.onseeked=requestRender;
+      done=true; res({v,thumb:c});
+    };
+    v.src=URL.createObjectURL(f);
+    v.play().catch(()=>{});    // iOS only fetches frames once playback has been asked for
+  });
+}
+async function addFiles(files){
+  const list=[...files].filter(f=>f.type.startsWith('image/')||isVideo(f)||/\.(jpe?g|png|webp|gif|avif|heic)$/i.test(f.name));
+  for(const f of list){
+    try{
+      if(isVideo(f)){
+        const {v,thumb}=await loadVideo(f);
+        S.images.push({kind:'video',el:v,bmp:thumb,tex:makeTex(thumb),w:v.videoWidth,h:v.videoHeight,dur:v.duration||1,
+          url:thumb.toDataURL('image/jpeg',.8),id:++uid});
+      } else {
+        const bmp=await loadImage(f);
+        S.images.push({bmp,tex:makeTex(bmp),w:bmp.width,h:bmp.height,url:URL.createObjectURL(f),id:++uid});
+      }
+    }catch(e){
+      console.warn(e);
+      notify(`「${f.name}」を読み込めませんでした。${/heic/i.test(f.name)?'HEIC形式はこのブラウザでは開けません。JPEGで書き出してから追加してください。':isVideo(f)?'このブラウザでは再生できない動画形式の可能性があります（WindowsのChromeはiPhoneのHEVC動画を再生できないことがあります）。':''}`);
+    }
+  }
+  refresh();
+  segmentAll();
+}
+function refresh(){
+  buildTimeline();
+  const has=S.images.length>0;
+  $('empty').style.display=has?'none':'flex';
+  $('playBtn').disabled=!has; $('seek').disabled=!has; $('exportBtn').disabled=!has;
+  if(curT>timeline.duration) curT=0;
+  renderThumbs(); render(curT); updateTime();
+}
+function renderThumbs(){
+  const ol=$('thumbs'); ol.innerHTML='';
+  S.images.forEach((im,i)=>{
+    const li=document.createElement('li'); li.draggable=true; li.dataset.i=i;
+    li.innerHTML=`<img src="${im.url}" alt=""><span class="no">${i+1}</span>${im.kind==='video'?`<span class="vid">▶ ${im.dur.toFixed(1)}s</span>`:''}<button class="x" title="削除">✕</button>
+      ${i>0?'<button class="mv l" title="前へ">◀</button>':''}${i<S.images.length-1?'<button class="mv r" title="後ろへ">▶</button>':''}`;
+    li.querySelector('.x').onclick=()=>{const [r]=S.images.splice(i,1);if(r.el){r.el.pause();URL.revokeObjectURL(r.el.src);r.el.removeAttribute('src');r.el.load();}gl.deleteTexture(r.tex);if(r.mask)gl.deleteTexture(r.mask);URL.revokeObjectURL(r.url);refresh();};
+    const l=li.querySelector('.mv.l'), rr=li.querySelector('.mv.r');
+    if(l) l.onclick=()=>{move(i,i-1)}; if(rr) rr.onclick=()=>{move(i,i+1)};
+    li.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/x-idx',i);li.classList.add('dragging')});
+    li.addEventListener('dragend',()=>li.classList.remove('dragging'));
+    li.addEventListener('dragover',e=>{if(e.dataTransfer.types.includes('text/x-idx'))e.preventDefault()});
+    li.addEventListener('drop',e=>{const from=+e.dataTransfer.getData('text/x-idx');if(!isNaN(from)){e.preventDefault();e.stopPropagation();move(from,i);}});
+    ol.appendChild(li);
+  });
+}
+function move(a,b){if(a===b)return;const [x]=S.images.splice(a,1);S.images.splice(b,0,x);refresh();}
+
+/* ============================================================
+   Music + BPM detection
+   ============================================================ */
+function detectBeat(buf){
+  const sr=buf.sampleRate, hop=512, len=Math.min(buf.length, sr*90);
+  const chs=[];for(let c=0;c<buf.numberOfChannels;c++)chs.push(buf.getChannelData(c));
+  const n=Math.floor(len/hop), env=new Float32Array(n);
+  let prev=0;
+  for(let i=0;i<n;i++){
+    let e=0;
+    for(let j=i*hop;j<(i+1)*hop;j++){let v=0;for(const ch of chs)v+=ch[j];e+=v*v;}
+    e=Math.log(1e-9+e);
+    env[i]=Math.max(0,e-prev); prev=e;
+  }
+  let m=0;for(const v of env)m+=v;m/=n;for(let i=0;i<n;i++)env[i]=Math.max(0,env[i]-m);
+  const fps=sr/hop;
+  let best=0,bestBpm=120;
+  for(let bpm=70;bpm<=180;bpm+=.25){
+    const lag=fps*60/bpm, li=Math.floor(lag), fr=lag-li;
+    let s=0;
+    for(let i=0;i+li+1<n;i++) s+=env[i]*(env[i+li]*(1-fr)+env[i+li+1]*fr);
+    s*=Math.exp(-Math.pow(Math.log2(bpm/110),2)/(2*.5*.5));
+    if(s>best){best=s;bestBpm=bpm;}
+  }
+  const per=fps*60/bestBpm; let bp=0,bv=-1;
+  for(let ph=0;ph<per;ph++){let s=0;for(let x=ph;x<n;x+=per)s+=env[Math.round(x)]||0;if(s>bv){bv=s;bp=ph;}}
+  return {bpm:Math.round(bestBpm*10)/10, phase:bp/fps};
+}
+async function setMusic(f){
+  if(S.audio){S.audio.pause();}
+  const url=URL.createObjectURL(f);
+  // a fresh element each time: MediaElementSource can only be created once per element
+  const a=new Audio(); a.src=url; a.preload='auto'; a.crossOrigin='anonymous';
+  S.audio=a; mediaSrc=null;
+  $('musicName').textContent=f.name;
+  await new Promise(r=>{a.onloadedmetadata=r;a.onerror=r;});
+  $('audioStart').max=Math.max(0,(a.duration||0)-1).toFixed(2); $('audioStart').disabled=false;
+  $('audioStart').value=0; S.audioStart=0; $('audioStartVal').textContent='0.0s';
+  try{
+    const ac=new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1,44100,44100);
+    S.audioBuf=await ac.decodeAudioData(await f.arrayBuffer());
+    $('detectBtn').disabled=false;
+    runDetect();
+  }catch(e){console.warn('decode failed',e);S.audioBuf=null;}
+}
+let beatPhase=0;
+function runDetect(){
+  if(!S.audioBuf) return;
+  $('detectBtn').textContent='解析中…';
+  setTimeout(()=>{
+    const {bpm,phase}=detectBeat(S.audioBuf);
+    beatPhase=phase; S.bpm=bpm; $('bpm').value=bpm;
+    snapStart(); $('detectBtn').textContent='自動検出';
+    refresh();
+  },30);
+}
+function snapStart(){
+  const per=60/S.bpm, v=+$('audioStart').value;
+  let s=beatPhase+Math.round((v-beatPhase)/per)*per; if(s<0)s+=per;
+  S.audioStart=s; $('audioStartVal').textContent=s.toFixed(2)+'s';
+}
+
+/* ============================================================
+   UI wiring
+   ============================================================ */
+$('drop').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=e=>{addFiles(e.target.files);e.target.value='';};
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();$('drop').classList.add('over');}}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{if(ev==='dragleave'&&e.relatedTarget)return;$('drop').classList.remove('over');}));
+document.addEventListener('drop',e=>{if(e.dataTransfer.files.length){e.preventDefault();addFiles(e.dataTransfer.files);}});
+
+$('playBtn').onclick=()=>playing?stop():play();
+$('seek').oninput=e=>{curT=e.target.value/1000*timeline.duration;if(playing){stop();play(curT);}else{render(curT);updateTime();}};
+$('musicBtn').onclick=()=>$('musicIn').click();
+$('musicIn').onchange=e=>{if(e.target.files[0])setMusic(e.target.files[0]);e.target.value='';};
+$('detectBtn').onclick=runDetect;
+$('audioStart').oninput=()=>{snapStart();};
+$('bpm').onchange=e=>{S.bpm=Math.min(200,Math.max(60,+e.target.value||100));e.target.value=S.bpm;if(S.audio)snapStart();refresh();};
+$('tempo').onchange=e=>{S.tempo=e.target.value;refresh();};
+$('fit').onchange=e=>{S.fit=e.target.value;if(!playing)render(curT);};
+const showVal=()=>document.querySelectorAll('.val').forEach(el=>el.textContent=Math.round($(el.dataset.for).value*100)+'%');
+['colorful','glow','film','sparkle'].forEach(id=>$(id).oninput=e=>{S[id]=+e.target.value;showVal();if(!playing)render(curT);});
+const setTheme=v=>{
+  S.theme=v; $('themeHint').textContent=THEME_HINT[v];
+  document.querySelectorAll('#themes button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+};
+document.querySelectorAll('#themes button').forEach(b=>b.onclick=()=>{setTheme(b.dataset.v);refresh();});
+['names','date','message'].forEach(id=>$(id).oninput=e=>{S[id]=e.target.value;if(!playing)requestRender();});
+$('titles').onchange=e=>{S.titles=e.target.checked;refresh();};
+$('shuffleBtn').onclick=()=>{S.seed=(Math.random()*1e6)|0;refresh();};
+$('aspect').onchange=e=>{const [w,h]=e.target.value.split('x').map(Number);setSize(w,h);};
+$('exportBtn').onclick=exportVideo;
+{ const d=new Date(); S.date=`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; $('date').value=S.date; }
+setTheme('mix'); showVal();
+// canvas text only uses web fonts once they are loaded
+if(document.fonts) Promise.all(['40px "Great Vibes"','600 40px "Cormorant Garamond"','500 40px "Shippori Mincho"','600 40px "Fredoka"']
+  .map(f=>document.fonts.load(f).catch(()=>{}))).then(()=>requestRender());
+
+function setSize(w,h){
+  S.W=w;S.H=h; out.width=comp.width=w; out.height=comp.height=h;
+  layerFbo.forEach(L=>sizeFbo(L,w,h)); sizeFbo(mixFbo,w,h); sizeFbo(bloomFbo,Math.ceil(w/4),Math.ceil(h/4));
+  $('screen').style.aspectRatio=`${w}/${h}`;
+  $('screen').style.maxWidth=h>w?'420px':'';
+  buildTimeline(); render(curT);
+}
+setSize(1920,1080);
+refresh();
+</script>
+</body>
+</html>

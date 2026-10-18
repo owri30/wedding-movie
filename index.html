@@ -621,10 +621,11 @@ const THEME_HINT = {
   film:'粒子・光漏れ・あたたかく褪せた色のフィルム風。',
   colorkeep:'まわりはモノクロ、人物だけカラー。人物がいない写真・動画は全体がモノクロに。',
 };
+// seconds: how long a picture shows on its own, and how long each slow transition takes
 const TEMPO = {
-  slow:  {hold:[12,12,14,10], tr:3.0, burst:0},
-  normal:{hold:[8,8,10,8,6], tr:2.6, burst:.16},
-  lively:{hold:[6,6,8,4], tr:2.0, burst:.3},
+  slow:  {solo:3.5, tr:4.2, burst:0},
+  normal:{solo:2.6, tr:3.4, burst:0},
+  lively:{solo:1.8, tr:2.6, burst:.2},
 };
 // light / film settings per look (scaled by the sliders)
 const LOOKP = {
@@ -635,6 +636,9 @@ const LOOKP = {
   4:{bloom:.4, grain:.05,fade:.05,warm:.04,leak:.05,vig:.25,sat:1,  high:.05},
 };
 
+// where a clip starts playing (skip the shaky first moment) and how much of it is left after that
+const clipStart=im=>isFinite(im.dur)?Math.min(.3,im.dur*.1):0;
+const clipLeft=im=>isFinite(im.dur)?im.dur-clipStart(im)-.1:1e9;
 function buildTimeline(){
   const n=S.images.length, beat=60/S.bpm, T=TEMPO[S.tempo];
   const r=mulberry32(hi(S.seed,n,Object.keys(TEMPO).indexOf(S.tempo),Object.keys(THEME_HINT).indexOf(S.theme),S.titles?1:0));
@@ -642,33 +646,37 @@ function buildTimeline(){
   if(!n){timeline={segs,duration:0};return;}
   const trB=Math.max(2,Math.round(T.tr/beat));
   const fixed=S.theme==='mix'?null:THEME_LOOK[S.theme];
-  const recent=[];
+  // the mix theme keeps one look for 2-3 pictures before moving on, so the mood changes slowly
+  const recent=[]; let runLook=-1, runLeft=0;
   const pickLook=()=>{
     if(fixed!=null) return fixed;
+    if(runLeft>0){ runLeft--; return runLook; }
     const pool=[1,3,2,4,0].filter(l=>!recent.includes(l));
-    const l=pool[Math.floor(r()*pool.length)];
-    recent.push(l); if(recent.length>2) recent.shift();
-    return l;
+    runLook=pool[Math.floor(r()*pool.length)]; runLeft=1+Math.floor(r()*2);
+    recent.push(runLook); if(recent.length>2) recent.shift();
+    return runLook;
   };
-  const add=(img,beats,o={})=>segs.push({img,beats,look:o.look??pickLook(),par:r(),seed:r()*100,title:o.title||null,cutIn:!!o.cutIn,
+  // a clip never gets more time than it has: no looping back to its start in the middle of a shot
+  const fitClip=(img,beats)=>{ const im=S.images[img]; return im.kind==='video' ? Math.max(2,Math.min(beats,Math.floor(clipLeft(im)/beat))) : beats; };
+  const add=(img,beats,o={})=>segs.push({img,beats:fitClip(img,beats),look:o.look??pickLook(),par:r(),seed:r()*100,title:o.title||null,cutIn:!!o.cutIn,
     petal:o.title?1:(r()<.45?.5+.5*r():0), spark:o.title?1:(r()<.55?1:0)});
+  const holdBeats=()=>Math.round((2*T.tr+T.solo*(.8+.4*r()))/beat);
   // opening: the first picture with the names
-  add(0, Math.max(trB+6, 2*Math.round(8/beat/2)), {title:S.titles?'open':null, look:fixed??3});
+  add(0, Math.round((T.tr+5.5)/beat), {title:S.titles?'open':null, look:fixed??3});
   let sinceBurst=3, i=1;
   while(i<n){
     const left=n-i;
-    if(T.burst && left>=4 && sinceBurst>=3 && r()<T.burst){
-      // a quick run of cuts on the beat, then a long, calm hold
-      const k=Math.min(left-1,3);
-      for(let j=0;j<k;j++) add(i+j,1,{cutIn:true});
-      i+=k; sinceBurst=0;
-      add(i, Math.max(trB+6,12), {cutIn:true}); i++;
+    // (lively only) a quick run of photo cuts on the beat, then a long, calm hold; clips are never cut short like this
+    if(T.burst && left>=4 && sinceBurst>=3 && r()<T.burst && [0,1,2].every(j=>S.images[i+j].kind!=='video')){
+      for(let j=0;j<3;j++) add(i+j,1,{cutIn:true});
+      i+=3; sinceBurst=0;
+      add(i, holdBeats()+4, {cutIn:true}); i++;
       continue;
     }
-    add(i, Math.max(T.hold[Math.floor(r()*T.hold.length)], trB+2)); i++; sinceBurst++;
+    add(i, holdBeats()); i++; sinceBurst++;
   }
   // ending: the first picture again with the closing words
-  add(0, Math.max(trB+6, 2*Math.round(7/beat/2)), {title:S.titles?'end':null, look:fixed??1});
+  add(0, Math.round((T.tr+6)/beat), {title:S.titles?'end':null, look:fixed??1});
 
   let lastMode=-1;
   segs.forEach((s,j)=>{
@@ -681,13 +689,14 @@ function buildTimeline(){
     if(s.look===2||nx.look===2) pool.push(4,4);
     const cand=pool.filter(m=>m!==lastMode);
     const mode=cand[Math.floor(r()*cand.length)];
-    lastMode=mode; s.tr={mode,beats:trB};
+    // a short clip gets a shorter transition, so both ends of it still fit inside the clip
+    lastMode=mode; s.tr={mode,beats:Math.max(1,Math.min(trB,Math.floor(s.beats/2),Math.floor(nx.beats/2)))};
   });
-  let t=0; const vpos={};
+  let t=0;
   segs.forEach(s=>{
     s.start=t; s.end=t+s.beats*beat; s.trStart=s.end-(s.tr?s.tr.beats:0)*beat; t=s.trStart;
     const im=S.images[s.img];
-    if(im.kind==='video'){ s.v0=vpos[s.img]||0; vpos[s.img]=(s.v0+(s.end-s.start))%(im.dur||1); }
+    if(im.kind==='video') s.v0=clipStart(im);
   });
   timeline={segs,duration:segs[segs.length-1].end};
 }
@@ -859,12 +868,13 @@ function requestRender(){ if(renderQueued||playing) return; renderQueued=true; s
 function syncVideo(im,want){
   const v=im.el; im.used=frameNo;
   if(playing){
-    if(v.paused){
+    if(isFinite(im.dur)&&want>=im.dur-.1){ /* at the end of the clip: hold its last frame (play() would restart it) */ }
+    else if(v.paused){
       if(Math.abs(v.currentTime-want)>.15) try{v.currentTime=want;}catch(e){}
       v.playbackRate=1; v.play().catch(()=>{});
     } else {
       // small drifts are taken up by playing a little faster or slower; jumping (seeking) makes the clip stutter
-      const D=im.dur||1; let d=want-v.currentTime; if(d>D/2) d-=D; if(d<-D/2) d+=D;   // the clip loops
+      const d=want-v.currentTime;
       if(Math.abs(d)>1 && !v.seeking){ v.currentTime=want; v.playbackRate=1; }
       else v.playbackRate=Math.abs(d)<.05?1:Math.min(1.15,Math.max(.85,1+d*.6));
     }
@@ -878,22 +888,22 @@ function syncVideo(im,want){
   if(im.vc){ im.vctx.drawImage(v,0,0,im.vc.width,im.vc.height); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,im.vc); }   // 4K clips: shrink first
   else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,v);
 }
-// start the next clip a moment before it shows, so it is already running (no stall) when it appears
+// cue the next clip at its first frame a moment before it shows, so it starts from there without a jump
 function prerollVideo(t){
   if(!playing) return;
-  const nx=timeline.segs.find(s=>s.start>t&&s.start-t<1.2);
+  const nx=timeline.segs.find(s=>s.start>t&&s.start-t<1.5);
   if(!nx) return;
-  const im=S.images[nx.img];
-  if(im.kind!=='video') return;
+  const im=S.images[nx.img], v=im.el;
+  if(im.kind!=='video'||!v.paused) return;
   im.used=frameNo;
-  if(im.el.paused){ try{im.el.currentTime=Math.max(0,nx.v0-(nx.start-t));}catch(e){} im.el.play().catch(()=>{}); }
+  if(Math.abs(v.currentTime-nx.v0)>.05&&!v.seeking) try{v.currentTime=nx.v0;}catch(e){}
 }
 function drawLayer(seg,t,fb){
   const W=S.W,H=S.H, im=S.images[seg.img], u=scene.u, pan=segPan(seg,t);
   gl.bindFramebuffer(gl.FRAMEBUFFER,fb); gl.viewport(0,0,W,H);
   gl.useProgram(scene.p);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,im.tex); gl.uniform1i(u.uTex,0);
-  if(im.kind==='video') syncVideo(im,(seg.v0+(t-seg.start))%(im.dur||1));
+  if(im.kind==='video') syncVideo(im,Math.min(seg.v0+(t-seg.start),isFinite(im.dur)?im.dur-.05:1e9));
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,im.mask||emptyMask); gl.uniform1i(u.uMask,1);
   gl.activeTexture(gl.TEXTURE0);
   gl.uniform2f(u.uRes,W,H); gl.uniform2f(u.uImg,im.w,im.h); gl.uniform2f(u.uPan,pan[0],pan[1]);
@@ -1122,7 +1132,7 @@ const isVideo=f=>f.type.startsWith('video/')||/\.(mp4|mov|m4v|webm)$/i.test(f.na
 function loadVideo(f){
   return new Promise((res,rej)=>{
     const v=document.createElement('video');
-    v.muted=true; v.defaultMuted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.loop=true; v.preload='auto';
+    v.muted=true; v.defaultMuted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.loop=false; v.preload='auto';
     let done=false; const fail=()=>{if(!done){done=true;rej(new Error('video'));}};
     v.onerror=fail; setTimeout(fail,20000);
     v.onloadeddata=async()=>{

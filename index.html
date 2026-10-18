@@ -217,8 +217,14 @@ let playing = false, exporting = false, curT = 0, clockBase = 0;
 
 const $ = id => document.getElementById(id);
 const out = $('out');                                  // WebGL output (what you see / what gets recorded)
-const comp = document.createElement('canvas');         // transparent 2D canvas for petals, sparkles and titles
-const ctx = comp.getContext('2d');
+// petals and sparkles are redrawn every frame, so they go on a half-size canvas (4x less to draw and upload);
+// the titles only change when the text does: drawn once at full size, faded in the post pass
+const OV_SCALE = .5;
+const comp = document.createElement('canvas');         // transparent 2D canvas for petals and sparkles
+const pctx = comp.getContext('2d');
+const tcomp = document.createElement('canvas');        // transparent 2D canvas for the title of the current segment
+const tctx = tcomp.getContext('2d');
+let ctx = pctx;                                         // the canvas the drawing helpers below draw on
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function hi(...n){let h=2166136261;for(const v of n){h^=(v|0);h=Math.imul(h,16777619);h^=h>>>13}return h>>>0}
@@ -242,11 +248,42 @@ float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p*=2.03;a*=.5;}return v;}
 float luma(vec3 c){return dot(c,vec3(.299,.587,.114));}
 vec3 sat(vec3 c,float k){return clamp(mix(vec3(luma(c)),c,k),0.,1.);}
-/* bright rainbow palette for the colourful "musical" world */
-vec3 pal(float t){return clamp(vec3(.55)+vec3(.5)*cos(6.2831853*(vec3(t)+vec3(0.,.33,.67))),0.,1.);}
+/* pop polka dots: pink, yellow, sky, mint, orange, lilac */
+vec3 popCol(float h){
+  float k=floor(fract(h)*6.);
+  if(k<1.) return vec3(1.,.36,.62);
+  if(k<2.) return vec3(1.,.83,.22);
+  if(k<3.) return vec3(.25,.78,1.);
+  if(k<4.) return vec3(.45,.9,.6);
+  if(k<5.) return vec3(1.,.55,.3);
+  return vec3(.68,.5,1.);
+}
+// one layer of round dots on a jittered grid, drifting slowly; fill = share of cells with a dot, grow scales them
+vec4 dotLayer(vec2 s,float asp,float resY,float t,float cell,vec2 vel,float seed,float fill,float grow){
+  vec2 q=s*vec2(asp,1.)/cell+vel*t+seed;
+  vec2 id0=floor(q); float e=1.2/(resY*cell); vec4 o=vec4(0.);
+  for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){
+    if(grow<=1.&&(i!=0||j!=0)) continue;                // at normal size a dot stays inside its own cell
+    vec2 id=id0+vec2(float(i),float(j));
+    float h=hash(id+seed);
+    if(h>fill) continue;
+    vec2 c=id+.5+(vec2(hash(id+3.1),hash(id+7.7))-.5)*.2+.04*vec2(sin(t*.45+h*20.),cos(t*.38+h*13.));
+    float r=(.14+.2*hash(id+11.3))*grow;   // max .34 + offset .14 < .5
+    float a=1.-smoothstep(r-e,r+e,length(q-c));
+    if(a>o.a) o=vec4(popCol(hash(id+5.3)+seed*.17),a);
+  }
+  return o;
+}
+// three layers (big, medium, small), each drifting its own way
+vec4 dots(vec2 s,float asp,float resY,float t,float seed,float fill,float grow){
+  vec4 o=dotLayer(s,asp,resY,t,.34,vec2(.035,-.02),seed,fill,grow);
+  vec4 l=dotLayer(s,asp,resY,t,.19,vec2(-.05,.015),seed+3.7,fill,grow); o=vec4(mix(o.rgb,l.rgb,l.a),max(o.a,l.a));
+  l=dotLayer(s,asp,resY,t,.1,vec2(.02,.05),seed+9.1,fill,grow);           o=vec4(mix(o.rgb,l.rgb,l.a),max(o.a,l.a));
+  return o;
+}
 `;
 
-/* looks: 0 film (natural, the post pass does the work) · 1 musical (person stays natural in a colourful painted world)
+/* looks: 0 film (natural, the post pass does the work) · 1 musical (person stays natural, colourful polka dots drift around)
    2 pop (flat bright colours + halftone dots, white sticker outline on the person) · 3 dreamy (high-key pastel)
    4 colour keep (background mono, person in colour) */
 const FS = COMMON + `
@@ -261,13 +298,6 @@ vec2 toImg(vec2 s){
   return p/sc+.5;
 }
 bool inside(vec2 u){ return u.x>=0.&&u.x<=1.&&u.y>=0.&&u.y<=1.; }
-vec3 world(vec2 s){
-  vec2 q=s*vec2(uRes.x/uRes.y,1.);
-  vec2 w=vec2(fbm(q*1.2+uTime*.06+uPar*7.),fbm(q*1.2+3.1-uTime*.05))-.5;
-  float h=fbm(q*1.6+w*2.2+uTime*.04);
-  vec3 c=pal(h*1.6+uPar+uTime*.02);
-  return mix(c,vec3(1.),smoothstep(.02,0.,abs(fract(h*6.+uTime*.05)-.5)-.47)*.35);   // soft marbled veins
-}
 float maskAt(vec2 s){
   vec2 u=toImg(s);
   if(uHasMask<.5||!inside(u)) return 0.;
@@ -279,15 +309,19 @@ void main(){
   bool inI=inside(iu);
   vec3 col;
   if(inI) col=texture2D(uTex,iu).rgb;
-  else { vec3 wc=world(s); col = (look==1||look==2) ? wc : mix(vec3(.97,.94,.92),wc,.22); }
+  else {                                                // margins (whole-picture fit): cream, with dots in the pop looks
+    col=vec3(.99,.96,.94);
+    if(look==1||look==2){ vec4 d=dots(s,uRes.x/uRes.y,uRes.y,uTime,uPar*10.,.55,1.); col=mix(col,d.rgb,d.a); }
+  }
   float m=inI ? smoothstep(.3,.7,maskAt(s)) : 0.;
   float A=uAmt, L=luma(col), hm=uHasMask;
   vec3 bg=col, pc=col;
   if(look==1){
-    vec3 w=world(s);
-    vec3 paint=sat(w,1.25)*(.2+1.*L);                   // the colourful world, shaded by the picture
-    paint=mix(paint,col*w*1.6,.3);
-    bg=mix(col,paint,A*(hm>.5?1.:.4));
+    vec4 d=dots(s,uRes.x/uRes.y,uRes.y,uTime,uPar*10.,.55,1.);
+    vec2 e2=abs(s-.5)*2.;
+    float w=hm>.5 ? 1. : smoothstep(.45,.95,max(e2.x,e2.y));   // no person found: dots stay near the edges
+    vec3 base=mix(col,vec3(1.,.97,.95),.3*A*w);
+    bg=mix(base,d.rgb,d.a*.92*A*w);
     pc=sat(col,1.08);
   } else if(look==2){
     int pp=int(floor(fract(uPar*3.7)*4.));
@@ -328,7 +362,7 @@ void main(){
 }`;
 
 /* mix pass: A = outgoing picture (its alpha = person), B = incoming
-   0 A only · 1 marbled ink dissolve · 2 surroundings melt into flowing colour while the person stays, then goes too
+   0 A only · 1 soft blotchy dissolve · 2 pop dots swell around the person (who stays) and the picture changes behind them
    3 a warm wash of light, the next picture shows through · 4 pop dots that grow into the next picture */
 const MFS = COMMON + `
 uniform sampler2D uA,uB; uniform vec2 uRes; uniform float uTime,uMode,uK,uSeedM;
@@ -349,26 +383,16 @@ void main(){
     vec3 a=TA(u+w*.035*front);
     vec3 b=TB(u-w*.02*front);
     vec3 col=mix(a,b,gone);
-    vec3 rim=pal(n*2.+uTime*.05+uSeedM);
-    col=mix(col,1.-(1.-col)*(1.-rim*.6),front*.55);      // pastel colour bleeding along the edge
+    col=mix(col,1.-(1.-col)*(1.-vec3(1.,.97,.92)*.5),front*.5);   // a soft light along the edge
     gl_FragColor=vec4(col,1.); return;
   }
   if(m==2){
+    // colourful dots swell up around the person, the picture changes behind them, then they shrink away
     vec4 a0=TA4(u);
-    float keep=a0.a*(1.-smoothstep(.55,.95,K+(fbm(q*3.+uSeedM)-.5)*.3));
-    vec2 w=vec2(fbm(q*1.6+uTime*.12+uSeedM),fbm(q*1.6+5.3-uTime*.1+uSeedM))-.5;
-    vec2 w2=vec2(fbm(q*3.5+w*3.+uTime*.08),fbm(q*3.5+w*3.+2.7-uTime*.07))-.5;
-    vec2 flow=(w*.24+w2*.12)*K;
-    vec4 aw=TA4(u+flow);
-    vec3 b=TB(u+flow*.3*(1.-K));
-    vec3 bgA=mix(aw.rgb,b,aw.a);                          // don't smear the person into the flow
-    float mh=fbm(q*2.+w*3.+uTime*.06+uSeedM);
-    vec3 g=mix(bgA,pal(mh*1.5+uTime*.03)*(.45+.75*luma(bgA)),.5);
-    bgA=mix(bgA,g,smoothstep(0.,.35,K));
-    float n=fbm(q*1.3+w*2.4+uSeedM*1.7);
-    float gone=smoothstep(n-.07,n+.07,mix(-.1,1.1,K));
-    vec3 col=mix(bgA,b,gone);
-    col=mix(col*(1.-.2*smoothstep(0.,.9,keep)*(1.-keep)),a0.rgb,keep);
+    float keep=a0.a*(1.-smoothstep(.6,.95,K));
+    vec4 d=dots(u,asp,uRes.y,uTime,uSeedM,1.,sin(3.14159*K)*2.4);
+    vec3 col=mix(mix(TA(u),TB(u),smoothstep(.4,.6,K)),d.rgb,d.a);
+    col=mix(col,a0.rgb,keep);
     gl_FragColor=vec4(col,1.); return;
   }
   if(m==3){
@@ -411,8 +435,8 @@ void main(){
 
 /* post: bloom + overlays (petals, titles) + film treatment */
 const PFS = COMMON + `
-uniform sampler2D uTex,uBl,uOv; uniform vec2 uRes,uBRes;
-uniform float uTime,uBloom,uGrain,uFade,uWarm,uLeak,uVig,uSat,uHigh,uFlash,uFadeOut,uSeedP;
+uniform sampler2D uTex,uBl,uOv,uTi; uniform vec2 uRes,uBRes;
+uniform float uTime,uBloom,uGrain,uFade,uWarm,uLeak,uVig,uSat,uHigh,uFlash,uFadeOut,uSeedP,uTitleA,uTitleOff;
 void main(){
   vec2 u=vUv; vec2 fu=vec2(u.x,1.-u.y);
   vec3 col=texture2D(uTex,fu).rgb;
@@ -423,13 +447,16 @@ void main(){
   col=mix(col,vec3(1.),uHigh*smoothstep(.35,1.,luma(col))*.45);       // airy highlights
   vec4 o=texture2D(uOv,u);
   col=mix(col,o.rgb,o.a);
+  if(uTitleA>0.){ vec4 ti=texture2D(uTi,u-vec2(0.,uTitleOff)); col=mix(col,ti.rgb,ti.a*uTitleA); }   // title rises a little as it fades in
   col=mix(vec3(luma(col)),col,uSat);
   col*=mix(vec3(1.),vec3(1.06,1.,.87),uWarm);
   col=mix(vec3(uFade*.55,uFade*.48,uFade*.5),vec3(1.-uFade*.12),col); // lifted blacks, softened whites
-  float lk=fbm(vec2(u.x*1.4+uTime*.06,u.y*.7-uTime*.03)+uSeedP);
   float e=max(smoothstep(.4,0.,u.x),smoothstep(.6,1.,u.x)*.7);
-  vec3 lcol=mix(vec3(1.,.45,.2),vec3(1.,.4,.55),fbm(u*2.+uTime*.05));
-  col=1.-(1.-col)*(1.-clamp(lcol*lk*lk*e*uLeak*1.6,0.,1.));           // light leaks from the edges
+  if(uLeak>0.&&e>0.){                                                 // light leaks from the edges
+    float lk=fbm(vec2(u.x*1.4+uTime*.06,u.y*.7-uTime*.03)+uSeedP);
+    vec3 lcol=mix(vec3(1.,.45,.2),vec3(1.,.4,.55),noise(u*4.+uTime*.1));
+    col=1.-(1.-col)*(1.-clamp(lcol*lk*lk*e*uLeak*1.6,0.,1.));
+  }
   col+=(hash(gl_FragCoord.xy+fract(uTime*7.)*100.)-.5)*uGrain*.28;   // grain
   vec2 v=u-.5; col*=1.-dot(v,v)*uVig*1.3;
   col=mix(col,vec3(1.),uFlash);
@@ -450,7 +477,7 @@ function program(fs,names){
 const scene = program(FS,['uTex','uMask','uRes','uImg','uPan','uFit','uTime','uLook','uPar','uAmt','uHasMask']);
 const mixer = program(MFS,['uA','uB','uRes','uTime','uMode','uK','uSeedM']);
 const bloom = program(BFS,['uTex','uStep']);
-const post = program(PFS,['uTex','uBl','uOv','uRes','uBRes','uTime','uBloom','uGrain','uFade','uWarm','uLeak','uVig','uSat','uHigh','uFlash','uFadeOut','uSeedP']);
+const post = program(PFS,['uTex','uBl','uOv','uRes','uBRes','uTime','uBloom','uGrain','uFade','uWarm','uLeak','uVig','uSat','uHigh','uFlash','uFadeOut','uSeedP','uTi','uTitleA','uTitleOff']);
 const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vb);
 gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
 gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
@@ -464,7 +491,7 @@ function makeTex(bmp){
   if(bmp) gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,bmp);
   return t;
 }
-const ovTex = makeTex(null);
+const ovTex = makeTex(null), titleTex = makeTex(null);
 const emptyMask = makeTex(null);
 gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(4));
 function makeFbo(){ return {tex:makeTex(null), fb:gl.createFramebuffer(), w:1, h:1}; }
@@ -588,7 +615,7 @@ async function segmentRun(todo){
 const THEME_LOOK = {film:0, musical:1, pop:2, dreamy:3, colorkeep:4};
 const THEME_HINT = {
   mix:'ミュージカル・POP・ふんわり光・フィルム・人物だけカラーを、似たものが続かないように1枚ずつ切り替えます。',
-  musical:'新郎新婦はそのままに、まわりの景色がゆっくり流れるカラフルな絵の具の世界に。',
+  musical:'新郎新婦はそのままに、まわりにカラフルな水玉がゆっくり漂います。',
   pop:'ビビッドな2色と水玉のポップアート風。人物は色を濃くして白いフチ取り、紙吹雪が舞います。',
   dreamy:'白とびぎみの明るいパステル。光がふんわりにじみます。',
   film:'粒子・光漏れ・あたたかく褪せた色のフィルム風。',
@@ -706,6 +733,7 @@ function starPath(s,n,inner){ ctx.beginPath(); for(let j=0;j<n*2;j++){ const a=j
 const isJa = s => /[^\x00-\x7F]/.test(s);
 function drawOverlay(t,F){
   const W=S.W,H=S.H,u=Math.min(W,H)/1080;
+  ctx=pctx; ctx.setTransform(OV_SCALE,0,0,OV_SCALE,0,0);   // draw in full-size coordinates onto the half-size canvas
   ctx.clearRect(0,0,W,H);
   let pet=0, spk=0, pop=0;
   F.list.forEach(({s,w})=>{ pet+=s.petal*w; spk+=s.spark*w; if(s.look===2) pop+=w; });
@@ -748,27 +776,44 @@ function drawOverlay(t,F){
     if(onEdge){ const p=im.edge[Math.floor(rnd(k,cyc,24)*im.edge.length)]; [x,y]=imgToScreen(im,pan,p[0],p[1]); x+=(rnd(k,cyc,28)-.5)*30*u; y+=(rnd(k,cyc,29)-.5)*30*u; }
     else { x=rnd(k,cyc,25)*W; y=rnd(k,cyc,26)*H*.85; }
     const s=(9+20*rnd(k,27))*u*(.4+.6*b);
-    const g=ctx.createRadialGradient(x,y,0,x,y,s*1.8);
-    g.addColorStop(0,`rgba(255,250,235,${.6*b})`); g.addColorStop(1,'rgba(255,240,220,0)');
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,s*1.8,0,7); ctx.fill();
-    ctx.save(); ctx.translate(x,y); ctx.rotate(rnd(k,30)*.6-.3); ctx.globalAlpha=b;
+    ctx.globalAlpha=b; ctx.drawImage(GLOW,x-s*1.8,y-s*1.8,s*3.6,s*3.6);
+    ctx.save(); ctx.translate(x,y); ctx.rotate(rnd(k,30)*.6-.3);
     ctx.fillStyle=pop>.5?CONF_COL[k%CONF_COL.length]:'#fffdf6';
     starPath(s,4,.16); ctx.fill(); ctx.restore();
   }
   ctx.globalAlpha=1;
-  F.list.forEach(({s})=>{ if(s.title) drawTitle(s,t); });
+}
+// soft glow behind each sparkle, drawn once
+const GLOW=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32); g.addColorStop(0,'rgba(255,250,235,.6)'); g.addColorStop(1,'rgba(255,240,220,0)');
+  x.fillStyle=g; x.fillRect(0,0,64,64); return c; })();
+// the title showing at time t (the one fading in wins over one fading out) and its opacity
+function titleAt(t,F){
+  let best=null;
+  F.list.forEach(({s})=>{ if(!s.title) return; const a=titleAlpha(s,t); if(a>0&&(!best||a>best.a)) best={seg:s,a}; });
+  return best;
+}
+function titleAlpha(seg,t){
+  let a=smooth(.5,1.8,t-seg.start);
+  if(seg.title==='open') a*=1-smooth(seg.trStart-.6,seg.trStart+.6,t);
+  return a;
+}
+let titleKey='', fontsVer=0;
+// redraw the title canvas only when what it shows changes; returns whether it needs uploading
+function prepareTitle(seg){
+  const key=[seg.title,seg.look===2,S.names,S.date,S.message,S.W,S.H,fontsVer].join('|');
+  if(key===titleKey) return false;
+  titleKey=key; ctx=tctx; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,S.W,S.H);
+  drawTitle(seg);
+  ctx=pctx; return true;
 }
 function fitFont(text,font,size,maxW){
   ctx.font=`${size}px ${font}`; const w=ctx.measureText(text).width;
   if(w>maxW) size*=maxW/w; ctx.font=`${size}px ${font}`; return size;
 }
-function drawTitle(seg,t){
+function drawTitle(seg){
   const W=S.W,H=S.H,u=Math.min(W,H);
-  const ts=t-seg.start;
-  let a=smooth(.5,1.8,ts);
-  if(seg.title==='open') a*=1-smooth(seg.trStart-.6,seg.trStart+.6,t);
-  if(a<=0) return;
-  const rise=(1-a)*u*.015;
+  const a=1, rise=0;           // fade and rise are applied in the post pass
   const date=S.date.trim(), names=S.names.trim(), msg=S.message.trim();
   const open=seg.title==='open';
   const main = open ? (names||'Happy Wedding') : (msg||names||'Thank you');   // big script line
@@ -814,13 +859,34 @@ function requestRender(){ if(renderQueued||playing) return; renderQueued=true; s
 function syncVideo(im,want){
   const v=im.el; im.used=frameNo;
   if(playing){
-    if(v.paused){ try{v.currentTime=want;}catch(e){} v.play().catch(()=>{}); }
-    else if(Math.abs(v.currentTime-want)>.35 && !v.seeking) v.currentTime=want;
+    if(v.paused){
+      if(Math.abs(v.currentTime-want)>.15) try{v.currentTime=want;}catch(e){}
+      v.playbackRate=1; v.play().catch(()=>{});
+    } else {
+      // small drifts are taken up by playing a little faster or slower; jumping (seeking) makes the clip stutter
+      const D=im.dur||1; let d=want-v.currentTime; if(d>D/2) d-=D; if(d<-D/2) d+=D;   // the clip loops
+      if(Math.abs(d)>1 && !v.seeking){ v.currentTime=want; v.playbackRate=1; }
+      else v.playbackRate=Math.abs(d)<.05?1:Math.min(1.15,Math.max(.85,1+d*.6));
+    }
   } else {
     if(!v.paused) v.pause();
     if(Math.abs(v.currentTime-want)>.04 && !v.seeking) v.currentTime=want;
   }
-  if(v.readyState>=2) gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,v);
+  if(v.readyState<2) return;
+  if(im.uploaded && v.requestVideoFrameCallback && !v.fresh) return;   // no new frame since the last upload
+  v.fresh=false; im.uploaded=true;
+  if(im.vc){ im.vctx.drawImage(v,0,0,im.vc.width,im.vc.height); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,im.vc); }   // 4K clips: shrink first
+  else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,v);
+}
+// start the next clip a moment before it shows, so it is already running (no stall) when it appears
+function prerollVideo(t){
+  if(!playing) return;
+  const nx=timeline.segs.find(s=>s.start>t&&s.start-t<1.2);
+  if(!nx) return;
+  const im=S.images[nx.img];
+  if(im.kind!=='video') return;
+  im.used=frameNo;
+  if(im.el.paused){ try{im.el.currentTime=Math.max(0,nx.v0-(nx.start-t));}catch(e){} im.el.play().catch(()=>{}); }
 }
 function drawLayer(seg,t,fb){
   const W=S.W,H=S.H, im=S.images[seg.img], u=scene.u, pan=segPan(seg,t);
@@ -838,24 +904,26 @@ function drawLayer(seg,t,fb){
 }
 function render(t){
   const W=S.W,H=S.H; frameNo++;
-  let pp=LOOKP[3], flash=0, fadeOut=1, seedP=0;
+  let pp=LOOKP[3], flash=0, fadeOut=1, seedP=0, title=null;
   if(!S.images.length){
-    ctx.clearRect(0,0,W,H);
+    pctx.setTransform(1,0,0,1,0,0); pctx.clearRect(0,0,comp.width,comp.height);
     [mixFbo,bloomFbo].forEach(L=>{ gl.bindFramebuffer(gl.FRAMEBUFFER,L.fb); gl.viewport(0,0,L.w,L.h); gl.clearColor(.1,.08,.09,1); gl.clear(gl.COLOR_BUFFER_BIT); });
     fadeOut=0;
   } else {
     const F=frameAt(t);
-    drawLayer(F.A,t,layerFbo[0].fb);
-    if(F.B) drawLayer(F.B,t,layerFbo[1].fb);
-    gl.bindFramebuffer(gl.FRAMEBUFFER,mixFbo.fb); gl.viewport(0,0,W,H);
-    gl.useProgram(mixer.p);
-    const mu=mixer.u;
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,layerFbo[0].tex); gl.uniform1i(mu.uA,0);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,layerFbo[F.B?1:0].tex); gl.uniform1i(mu.uB,1);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.uniform2f(mu.uRes,W,H); gl.uniform1f(mu.uTime,t);
-    gl.uniform1f(mu.uMode,F.B?F.mode:0); gl.uniform1f(mu.uK,F.k); gl.uniform1f(mu.uSeedM,F.A.seed);
-    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    if(!F.B) drawLayer(F.A,t,mixFbo.fb);                 // one picture: straight into the mixed frame
+    else {
+      drawLayer(F.A,t,layerFbo[0].fb); drawLayer(F.B,t,layerFbo[1].fb);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,mixFbo.fb); gl.viewport(0,0,W,H);
+      gl.useProgram(mixer.p);
+      const mu=mixer.u;
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,layerFbo[0].tex); gl.uniform1i(mu.uA,0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,layerFbo[1].tex); gl.uniform1i(mu.uB,1);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform2f(mu.uRes,W,H); gl.uniform1f(mu.uTime,t);
+      gl.uniform1f(mu.uMode,F.mode); gl.uniform1f(mu.uK,F.k); gl.uniform1f(mu.uSeedM,F.A.seed);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    }
     // quarter-size glow
     gl.bindFramebuffer(gl.FRAMEBUFFER,bloomFbo.fb); gl.viewport(0,0,bloomFbo.w,bloomFbo.h);
     gl.useProgram(bloom.p);
@@ -863,6 +931,13 @@ function render(t){
     gl.uniform2f(bloom.u.uStep,1/bloomFbo.w,1/bloomFbo.h);
     gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     drawOverlay(t,F);
+    prerollVideo(t);
+    title=titleAt(t,F);
+    if(title && prepareTitle(title.seg)){
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,titleTex);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,tcomp);
+      gl.activeTexture(gl.TEXTURE0);
+    }
     const pa=LOOKP[F.A.look], pb=F.B?LOOKP[F.B.look]:pa;
     pp={}; for(const k in pa) pp[k]=pa[k]+(pb[k]-pa[k])*F.k;
     const cur=F.B||F.A;
@@ -877,6 +952,8 @@ function render(t){
   const pu=post.u, g=S.glow*2, fm=S.film*2;
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,ovTex);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,comp); gl.uniform1i(pu.uOv,2);
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D,titleTex); gl.uniform1i(pu.uTi,3);
+  gl.uniform1f(pu.uTitleA,title?title.a:0); gl.uniform1f(pu.uTitleOff,title?(1-title.a)*.015*Math.min(W,H)/H:0);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,bloomFbo.tex); gl.uniform1i(pu.uBl,1);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,mixFbo.tex); gl.uniform1i(pu.uTex,0);
   gl.uniform2f(pu.uRes,W,H); gl.uniform2f(pu.uBRes,bloomFbo.w,bloomFbo.h); gl.uniform1f(pu.uTime,t);
@@ -937,12 +1014,17 @@ function nextFrame(id){
   if(!document.hidden) requestAnimationFrame(f);
   setTimeout(f,34);
 }
+let lastRender=0;
 function loop(id){
   if(!playing||id!==loopId) return;
   let t=now();
   if(S.audio && gainNode && timeline.duration-t<1.5) gainNode.gain.setTargetAtTime(0,audioCtx.currentTime,.4);   // music fades with the picture
   if(t>=timeline.duration){t=timeline.duration;curT=t;render(t-.001);updateTime();stop();onPlaybackEnd();return;}
-  curT=Math.max(0,t); render(curT); updateTime();
+  curT=Math.max(0,t);
+  // 30 frames a second, the same as the export: half the work of a 60 Hz screen, and steadier on phones
+  const nowMs=performance.now();
+  if(nowMs-lastRender<30){ nextFrame(id); return; }
+  lastRender=nowMs; render(curT); updateTime();
   if(exporting) $('prog').style.width=(curT/timeline.duration*100)+'%';
   nextFrame(id);
 }
@@ -1051,12 +1133,20 @@ function loadVideo(f){
       const sc=Math.min(1,320/Math.max(v.videoWidth,v.videoHeight)), c=document.createElement('canvas');
       c.width=Math.round(v.videoWidth*sc); c.height=Math.round(v.videoHeight*sc);
       c.getContext('2d').drawImage(v,0,0,c.width,c.height);
-      v.onseeked=requestRender;
+      v.onseeked=()=>{v.fresh=true;requestRender();};
+      if(v.requestVideoFrameCallback){ const cb=()=>{v.fresh=true;v.requestVideoFrameCallback(cb);}; v.requestVideoFrameCallback(cb); }
       done=true; res({v,thumb:c});
     };
     v.src=URL.createObjectURL(f);
     v.play().catch(()=>{});    // iOS only fetches frames once playback has been asked for
   });
+}
+// clips bigger than full HD (iPhone 4K) are shrunk on a canvas before going to the GPU each frame
+function videoShrink(v){
+  const sc=Math.min(1,1920/Math.max(v.videoWidth,v.videoHeight));
+  if(sc>=1) return {};
+  const vc=document.createElement('canvas'); vc.width=Math.round(v.videoWidth*sc); vc.height=Math.round(v.videoHeight*sc);
+  return {vc, vctx:vc.getContext('2d')};
 }
 async function addFiles(files){
   const list=[...files].filter(f=>f.type.startsWith('image/')||isVideo(f)||/\.(jpe?g|png|webp|gif|avif|heic)$/i.test(f.name));
@@ -1065,7 +1155,7 @@ async function addFiles(files){
       if(isVideo(f)){
         const {v,thumb}=await loadVideo(f);
         S.images.push({kind:'video',el:v,bmp:thumb,tex:makeTex(thumb),w:v.videoWidth,h:v.videoHeight,dur:v.duration||1,
-          url:thumb.toDataURL('image/jpeg',.8),id:++uid});
+          url:thumb.toDataURL('image/jpeg',.8),id:++uid,...videoShrink(v)});
       } else {
         const bmp=await loadImage(f);
         S.images.push({bmp,tex:makeTex(bmp),w:bmp.width,h:bmp.height,url:URL.createObjectURL(f),id:++uid});
@@ -1200,10 +1290,11 @@ $('exportBtn').onclick=exportVideo;
 setTheme('mix'); showVal();
 // canvas text only uses web fonts once they are loaded
 if(document.fonts) Promise.all(['40px "Great Vibes"','600 40px "Cormorant Garamond"','500 40px "Shippori Mincho"','600 40px "Fredoka"']
-  .map(f=>document.fonts.load(f).catch(()=>{}))).then(()=>requestRender());
+  .map(f=>document.fonts.load(f).catch(()=>{}))).then(()=>{fontsVer++;requestRender();});
 
 function setSize(w,h){
-  S.W=w;S.H=h; out.width=comp.width=w; out.height=comp.height=h;
+  S.W=w;S.H=h; out.width=tcomp.width=w; out.height=tcomp.height=h;
+  comp.width=Math.ceil(w*OV_SCALE); comp.height=Math.ceil(h*OV_SCALE); titleKey="";
   layerFbo.forEach(L=>sizeFbo(L,w,h)); sizeFbo(mixFbo,w,h); sizeFbo(bloomFbo,Math.ceil(w/4),Math.ceil(h/4));
   $('screen').style.aspectRatio=`${w}/${h}`;
   $('screen').style.maxWidth=h>w?'420px':'';

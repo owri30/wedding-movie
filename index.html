@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Wedding Movie</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,11 +14,11 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif}
-header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;background:linear-gradient(90deg,#fff6f3,#fdf3fa 50%,#f3f8ff)}
+header{padding-block:16px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;background:linear-gradient(90deg,#fff6f3,#fdf3fa 50%,#f3f8ff)}
 header h1{margin:0;font:400 34px/1 "Great Vibes",cursive;color:var(--accent)}
 header p{margin:0;color:var(--muted);font-size:13px}
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;padding:20px;max-width:1500px;margin:0 auto}
-@media (max-width:900px){.layout{grid-template-columns:1fr;padding:16px}}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;padding-block:20px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));max-width:1500px;margin:0 auto}
+@media (max-width:900px){.layout{grid-template-columns:1fr;padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}}
 .stage{min-width:0}
 .screen{background:#1b1416;border-radius:12px;display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;max-height:72vh;margin:0 auto;overflow:hidden;position:relative;box-shadow:0 6px 24px #6b3d4a22}
 .screen canvas{width:100%;height:100%;display:block}
@@ -483,17 +483,28 @@ function sizeFbo(L,w,h){
    ============================================================ */
 const MP_VER='0.10.14';
 let segmenterP=null;
+// a model published next to the page as base64 text parts (claude.ai only serves web file types and caps file size),
+// or the original URL when those parts aren't there (GitHub Pages, local file)
+async function modelSpec(parts,url){
+  try{
+    const txt=(await Promise.all(parts.map(p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r.text();})))).join('');
+    const bin=atob(txt), all=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) all[i]=bin.charCodeAt(i);
+    return {modelAssetBuffer:all};
+  }catch(e){ return {modelAssetPath:url}; }
+}
 function getSegmenter(){
   if(!segmenterP) segmenterP=(async()=>{
     const v=await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/vision_bundle.mjs`);
     const base=`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/wasm`;
     const files={wasmLoaderPath:base+'/vision_wasm_internal.js', wasmBinaryPath:base+'/vision_wasm_internal.wasm'};
-    const mk=url=>v.ImageSegmenter.createFromOptions(files,{baseOptions:{modelAssetPath:url,delegate:'CPU'},
+    try{ const r=await fetch('mp/vision_wasm_internal.wasm',{method:'HEAD'}); if(r.ok) files.wasmBinaryPath=new URL('mp/vision_wasm_internal.wasm',location.href).href; }catch(e){}
+    const mk=spec=>v.ImageSegmenter.createFromOptions(files,{baseOptions:{...spec,delegate:'CPU'},
       runningMode:'IMAGE', outputCategoryMask:true, outputConfidenceMasks:false});
     // multiclass: hair / skin / clothes (good up close); deeplab: 'person' class (better for small, distant people)
     const [multi,deeplab]=await Promise.all([
-      mk('https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite'),
-      mk('https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite')]);
+      modelSpec(['mp/multiclass.part1.txt','mp/multiclass.part2.txt'],'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite').then(mk),
+      modelSpec(['mp/deeplab_v3.txt'],'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite').then(mk)]);
     return {multi,deeplab};
   })();
   return segmenterP;

@@ -183,7 +183,6 @@ input[type=range]{accent-color:var(--accent)}
         <input type="range" id="sparkle" min="0" max="1" step="0.05" value="0.6">
         <span class="small val" data-for="sparkle"></span>
       </div>
-      <div class="row"><label class="check"><input type="checkbox" id="voxel" checked> マイクラ風ブロック（体の一部がぼこぼこ）</label></div>
       <div class="row">
         <button id="shuffleBtn">🎲 組み合わせを変える</button>
       </div>
@@ -209,7 +208,7 @@ const S = {
   images: [],          // {kind, bmp, tex, w, h, url, id, mask, personArea, personBox, edge}
   bpm: 100, seed: 7, theme: 'mix', tempo: 'normal', fit: 'cover',
   colorful: .8, glow: .5, film: .5, sparkle: .6,
-  names: '', date: '', message: 'Thank you', titles: true, voxel: true,
+  names: '', date: '', message: 'Thank you', titles: true,
   W: 1920, H: 1080,
   audio: null, audioBuf: null, audioStart: 0,
 };
@@ -291,8 +290,6 @@ const FS = COMMON + `
 uniform sampler2D uTex, uMask;
 uniform vec2 uRes, uImg, uPan;
 uniform float uFit, uTime, uLook, uPar, uAmt, uHasMask;
-uniform vec3 uVox;      // blocky part of the person: x,y centre (screen uv), z radius (in screen heights)
-uniform float uVoxA;    // 0 = off; rises to 1 as the blocks come up
 
 vec2 toImg(vec2 s){
   float sa=uRes.x/uRes.y, ia=uImg.x/uImg.y;
@@ -305,41 +302,6 @@ float maskAt(vec2 s){
   vec2 u=toImg(s);
   if(uHasMask<.5||!inside(u)) return 0.;
   return texture2D(uMask,u).r;
-}
-/* Minecraft-like blocks: the picture is cut into square cells and each cell inside the chosen part of the person
-   becomes a cube of its own height, seen from above-right (tops shift up-left, right and bottom faces show) */
-const vec2 VK=vec2(.45,.6);   // how far a block's top shifts per unit of height, in cells (screen y points down)
-float voxCell(vec2 cell,float cpx,out vec3 cc){        // height in cells, or -1 when this cell stays flat
-  vec2 sc=(cell+.5)*cpx/uRes;
-  float rr=uVox.z*(.75+.5*hash(cell+3.7));
-  float dl=length((sc-uVox.xy)*vec2(uRes.x/uRes.y,1.));
-  cc=vec3(0.);
-  if(dl>rr||maskAt(sc)<.5) return -1.;
-  cc=sat(texture2D(uTex,toImg(sc)).rgb,1.08);
-  float n=noise(cell*.45+vec2(uTime*.22,-uTime*.17));   // the blocks rise and sink slowly
-  return uVoxA*2.8*(.1+.9*n)*smoothstep(rr,rr*.35,dl);
-}
-vec4 voxels(vec2 uv){                                    // rgb + 1 where a block covers this pixel
-  float cpx=uRes.y/14.;
-  vec2 p=uv*uRes/cpx, base=floor(p);
-  float best=-1., face=0.; vec3 bc=vec3(0.); vec2 tq=vec2(0.);
-  for(int j=0;j<3;j++) for(int i=0;i<3;i++){
-    vec2 cell=base+vec2(float(i),float(j));
-    vec3 cc; float h=voxCell(cell,cpx,cc);
-    if(h<0.) continue;
-    // the view ray through this pixel meets the block's column where p+z*VK lies over the cell; keep the highest hit
-    vec2 z0=(cell-p)/VK, z1=(cell+1.-p)/VK;
-    float zmin=max(0.,max(z0.x,z0.y)), zmax=min(h,min(z1.x,z1.y));
-    if(zmin>zmax||zmax<=best) continue;
-    best=zmax; bc=cc;
-    face = zmax>=h-1e-4 ? 0. : (z1.x<z1.y ? 1. : 2.);    // 0 top, 1 right side, 2 bottom side
-    tq=p+zmax*VK-cell;
-  }
-  if(best<0.) return vec4(0.);
-  vec3 vc=bc;
-  if(face<.5){ vec2 e=min(tq,1.-tq); vc*=1.06-.18*smoothstep(.08,0.,min(e.x,e.y)); }   // a faint edge on each top
-  else if(face<1.5) vc*=.72; else vc*=.5;
-  return vec4(vc,1.);
 }
 void main(){
   vec2 s=vUv; vec2 iu=toImg(s);
@@ -395,10 +357,6 @@ void main(){
     for(int j=0;j<12;j++){ float a=float(j)*.5236; d=max(d,maskAt(s+vec2(cos(a),sin(a))*r/uRes)); }
     float ol=clamp(smoothstep(.3,.6,d)-m,0.,1.);
     col=mix(col,vec3(1.),ol*smoothstep(.2,.6,A));
-  }
-  if(uVoxA>0.&&uHasMask>.5&&length((s-uVox.xy)*vec2(uRes.x/uRes.y,1.))<uVox.z*1.25+.15){
-    vec4 vx=voxels(s);
-    col=mix(col,vx.rgb,vx.a); m=max(m,vx.a);
   }
   gl_FragColor=vec4(clamp(col,0.,1.),m);
 }`;
@@ -516,7 +474,7 @@ function program(fs,names){
   const u={}; names.forEach(n=>u[n]=gl.getUniformLocation(p,n));
   return {p,u};
 }
-const scene = program(FS,['uTex','uMask','uRes','uImg','uPan','uFit','uTime','uLook','uPar','uAmt','uHasMask','uVox','uVoxA']);
+const scene = program(FS,['uTex','uMask','uRes','uImg','uPan','uFit','uTime','uLook','uPar','uAmt','uHasMask']);
 const mixer = program(MFS,['uA','uB','uRes','uTime','uMode','uK','uSeedM']);
 const bloom = program(BFS,['uTex','uStep']);
 const post = program(PFS,['uTex','uBl','uOv','uRes','uBRes','uTime','uBloom','uGrain','uFade','uWarm','uLeak','uVig','uSat','uHigh','uFlash','uFadeOut','uSeedP','uTi','uTitleA','uTitleOff']);
@@ -683,7 +641,7 @@ const clipStart=im=>isFinite(im.dur)?Math.min(.3,im.dur*.1):0;
 const clipLeft=im=>isFinite(im.dur)?im.dur-clipStart(im)-.1:1e9;
 function buildTimeline(){
   const n=S.images.length, beat=60/S.bpm, T=TEMPO[S.tempo];
-  const r=mulberry32(hi(S.seed,n,Object.keys(TEMPO).indexOf(S.tempo),Object.keys(THEME_HINT).indexOf(S.theme),S.titles?1:0,S.voxel?1:0));
+  const r=mulberry32(hi(S.seed,n,Object.keys(TEMPO).indexOf(S.tempo),Object.keys(THEME_HINT).indexOf(S.theme),S.titles?1:0));
   const segs=[];
   if(!n){timeline={segs,duration:0};return;}
   const trB=Math.max(2,Math.round(T.tr/beat));
@@ -720,18 +678,6 @@ function buildTimeline(){
   // ending: the first picture again with the closing words
   add(0, Math.round((T.tr+6)/beat), {title:S.titles?'end':null, look:fixed??1});
 
-  // blocky body part: some shots of photos with a person in them, never two in a row, never under a title
-  const voxOk=s=>{ const im=S.images[s.img]; return !s.title&&!s.cutIn&&im.kind!=='video'&&im.mask&&im.personArea>.03&&im.personArea<.85; };
-  const voxAt=s=>{ const im=S.images[s.img], b=im.personBox, sc=fitScale(im);
-    s.vox={cx:b[0]+(b[2]-b[0])*(.3+.4*r()), cy:b[1]+(b[3]-b[1])*(.18+.45*r()), r:Math.min(.32,Math.max(.13,(b[3]-b[1])*sc[1]*.3))}; };
-  let prevVox=false;
-  segs.forEach(s=>{
-    s.vox=null;
-    if(S.voxel&&!prevVox&&voxOk(s)&&r()<.7) voxAt(s);
-    prevVox=!!s.vox;
-  });
-  // switched on: at least one shot gets it whenever some photo can
-  if(S.voxel&&!segs.some(s=>s.vox)){ const c=segs.filter(voxOk); if(c.length) voxAt(c[Math.floor(r()*c.length)]); }
   let lastMode=-1;
   segs.forEach((s,j)=>{
     const nx=segs[j+1];
@@ -964,12 +910,6 @@ function drawLayer(seg,t,fb){
   gl.uniform1f(u.uFit,S.fit==='cover'?1:0); gl.uniform1f(u.uTime,t);
   gl.uniform1f(u.uLook,seg.look); gl.uniform1f(u.uPar,seg.par); gl.uniform1f(u.uAmt,S.colorful);
   gl.uniform1f(u.uHasMask,im.mask?1:0);
-  let va=0, vc=[0,0,0];
-  if(seg.vox&&im.mask){
-    va=smooth(seg.start+.8,seg.start+2.8,t)*(1-smooth(seg.trStart-.6,seg.trStart+1.2,t));   // comes up slowly, sinks slowly
-    const [x,y]=imgToScreen(im,pan,seg.vox.cx,seg.vox.cy); vc=[x/W,y/H,seg.vox.r];
-  }
-  gl.uniform3f(u.uVox,vc[0],vc[1],vc[2]); gl.uniform1f(u.uVoxA,va);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 }
 function render(t){
@@ -1165,7 +1105,7 @@ function notify(msg){
   clearTimeout(notify.t); notify.t=setTimeout(()=>{n.hidden=true;},7000);
 }
 function setBusy(b){
-  ['exportBtn','playBtn','seek','shuffleBtn','aspect','tempo','bpm','fit','fileIn','musicBtn','detectBtn','audioStart','titles','voxel','names','date','message']
+  ['exportBtn','playBtn','seek','shuffleBtn','aspect','tempo','bpm','fit','fileIn','musicBtn','detectBtn','audioStart','titles','names','date','message']
     .forEach(id=>{const el=$(id);if(el)el.disabled=b||(id==='detectBtn'&&!S.audioBuf)||(id==='audioStart'&&!S.audio)});
   document.querySelectorAll('#themes button').forEach(x=>x.disabled=b);
   $('exportBtn').textContent=b?'書き出し中…':'動画を書き出す';
@@ -1353,7 +1293,6 @@ const setTheme=v=>{
 document.querySelectorAll('#themes button').forEach(b=>b.onclick=()=>{setTheme(b.dataset.v);refresh();});
 ['names','date','message'].forEach(id=>$(id).oninput=e=>{S[id]=e.target.value;if(!playing)requestRender();});
 $('titles').onchange=e=>{S.titles=e.target.checked;refresh();};
-$('voxel').onchange=e=>{S.voxel=e.target.checked;refresh();};
 $('shuffleBtn').onclick=()=>{S.seed=(Math.random()*1e6)|0;refresh();};
 $('aspect').onchange=e=>{const [w,h]=e.target.value.split('x').map(Number);setSize(w,h);};
 $('exportBtn').onclick=exportVideo;
